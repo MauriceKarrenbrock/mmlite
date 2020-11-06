@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 """Helper functions/classes."""
 # pylint: disable=protected-access,no-member
+from pathlib import Path
+
 import mdtraj
 import nglview
 import numpy as np
-from simtk import openmm, unit
+import simtk.openmm as mm
+from simtk import unit
+from simtk.openmm.app.pdbfile import PDBFile
 from simtk.unit.quantity import Quantity
 
 
@@ -22,9 +26,9 @@ def create_langevin_context(system,
     if not all_have_units:
         raise ValueError
 
-    integrator = openmm.LangevinIntegrator(temp, friction, ts)
+    integrator = mm.LangevinIntegrator(temp, friction, ts)
     # Create a Context for this integrator
-    context = openmm.Context(system, integrator)
+    context = mm.Context(system, integrator)
 
     if xp is not None:  # Set the positions
         context.setPositions(xp)
@@ -47,16 +51,17 @@ def compute_energy(context, forces=False):
     return vp if not forces else (vp, fp)
 
 
-def context_data(context, data=None, **kwargs):
+def simulation_state(simulation, data=None, **kwargs):
     """
     Return a context state.
 
     Parameters
     ----------
-    context : context obj
+    simulation : Simulation or Context object.
     data : list or str
-        List of quantities to include in the context state. If a string, split
-        into a list.
+        List of quantities to include in the context state.
+        If a string, split into a list.
+        Valid values are: {positions, velocities, forces, energy, parameters}
     kwargs : pass to context.getState
 
     Returns
@@ -65,6 +70,11 @@ def context_data(context, data=None, **kwargs):
 
     """
 
+    try:
+        context = simulation.context
+    except AttributeError:
+        context = simulation
+
     if isinstance(data, str):
         data = data.split()
 
@@ -72,7 +82,69 @@ def context_data(context, data=None, **kwargs):
         data = {'get' + a.title().replace('_', ''): True for a in data}
     else:
         data = {}
+
     return context.getState(**data, **kwargs)
+
+
+def simulation_energy(simulation):
+    """
+    Return the potential and kinetic energy.
+
+    Parameters
+    ----------
+    simulation : Simulation or Context object.
+
+    Returns
+    -------
+    dict
+        A dict containing the potential and kinetic energy
+
+    """
+
+    state = simulation_state(simulation, 'energy')
+
+    return {
+        'potential': state.getPotentialEnergy(),
+        'kinetic': state.getKineticEnergy()
+    }
+
+
+def simulation_positions(simulation):
+    """
+    Return atomic coordinates.
+
+    Parameters
+    ----------
+    simulation : Simulation or Context object.
+
+    Returns
+    -------
+    ndarray
+
+    """
+
+    state = simulation_state(simulation, 'positions')
+
+    return state.getPositions(asNumpy=True)
+
+
+def simulation_forces(simulation):
+    """
+    Return atomic forces.
+
+    Parameters
+    ----------
+    simulation : Simulation or Context object.
+
+    Returns
+    -------
+    ndarray
+
+    """
+
+    state = simulation_state(simulation, 'forces')
+
+    return state.getForces(asNumpy=True)
 
 
 def view_traj(xp, top):
@@ -96,3 +168,48 @@ def view_traj(xp, top):
         view.add_ball_and_stick('all')
     view.center(zoom=True)
     return view
+
+
+def minimize(simulation, tol=10 * unit.kilojoule / unit.mole, max_iter=None):
+    """Perform a local energy minimization on the system.
+
+    Parameters
+    ----------
+    simulation : Simulation or Context object.
+    tol : energy=10*kilojoules/mole
+        The energy tolerance to which the system should be minimized
+    max_iter : int=None
+        The maximum number of iterations to perform.  If this is 0,
+        Default: minimization is continued until the results converge.
+
+    Returns
+    -------
+    Context or Simulation.
+
+    """
+
+    try:
+        context = simulation.context
+    except AttributeError:
+        context = simulation
+
+    max_iter = max_iter or 0
+    minimize.info = {
+    }  # store info on the minimization as a function attribute
+    minimize.info['V0'] = simulation_energy(context)['potential']
+    mm.LocalEnergyMinimizer.minimize(context, tol, maxIterations=max_iter)
+    minimize.info['V1'] = simulation_energy(context)['potential']
+
+
+def write_single_pdb(xp, top, target):
+    """Dump coordinates to a pdb file `target`."""
+    try:
+        target = Path(target)
+    except TypeError:
+        if hasattr(target, 'write'):
+            PDBFile.writeFile(top, xp, target)
+        else:
+            raise
+    else:
+        with open(target, 'w') as fp:
+            PDBFile.writeFile(top, xp, fp)
