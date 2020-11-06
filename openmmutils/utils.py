@@ -43,3 +43,31 @@ def compute_energy(context, forces=False):
     vp = state.getPotentialEnergy()
 
     return vp if not forces else (vp, fp)
+
+
+def context_data(context, data=None, **kwargs):
+    """
+    Return a context state.
+
+    Parameters
+    ----------
+    context : context obj
+    data : list or str
+        List of quantities to include in the context state. If a string, split
+        into a list.
+    kwargs : pass to context.getState
+
+    Returns
+    -------
+    state object
+
+    """
+
+    if isinstance(data, str):
+        data = data.split()
+
+    if data:
+        data = {'get' + a.title().replace('_', ''): True for a in data}
+    else:
+        data = {}
+    return context.getState(**data, **kwargs)
