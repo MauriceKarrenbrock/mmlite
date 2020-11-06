@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Template package file"""
-__title__ = 'template_project'
+__title__ = 'openmmutils'
 __version__ = '0.1'
 __author__ = 'Simone Marsili'
 __summary__ = ''
