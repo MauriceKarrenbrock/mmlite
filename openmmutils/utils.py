@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Helper functions/classes."""
 # pylint: disable=protected-access,no-member
+import mdtraj
+import nglview
 import numpy as np
 from simtk import openmm, unit
 from simtk.unit.quantity import Quantity
@@ -71,3 +73,26 @@ def context_data(context, data=None, **kwargs):
     else:
         data = {}
     return context.getState(**data, **kwargs)
+
+
+def view_traj(xp, top):
+    """Create an MDTraj Trajectory object and return a nglview view.
+
+    Parameters
+    ----------
+    xp : array-like
+    top : topology
+
+    Return
+    ------
+    nglview view object
+
+    """
+
+    mdtop = mdtraj.Topology.from_openmm(top)
+    traj = mdtraj.Trajectory(xp / unit.nanometers, mdtop)
+    view = nglview.show_mdtraj(traj)
+    if len(xp) < 10000:
+        view.add_ball_and_stick('all')
+    view.center(zoom=True)
+    return view
