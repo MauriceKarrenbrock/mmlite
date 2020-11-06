@@ -1,2 +1,4 @@
+mdtraj
+nglview
 numpy
 openmm
