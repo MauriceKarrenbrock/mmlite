@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Template package file"""
-__title__ = 'openmmutils'
+"""openmm_lite package info"""
+__title__ = 'openmm_lite'
 __version__ = '0.1'
 __author__ = 'Simone Marsili'
 __summary__ = ''
-__url__ = 'https://github.com/simomarsili/template_project'
+__url__ = 'https://github.com/simomarsili/openmm_lite'
 __email__ = 'simo.marsili@gmail.com'
 __license__ = 'BSD 3-Clause'
 __copyright__ = 'Copyright (c) 2020, Simone Marsili'
