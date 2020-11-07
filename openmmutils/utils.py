@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Helper functions/classes."""
+import sys
 # pylint: disable=protected-access,no-member
 from pathlib import Path
 
@@ -9,7 +10,62 @@ import numpy as np
 import simtk.openmm as mm
 from simtk import unit
 from simtk.openmm.app.pdbfile import PDBFile
+from simtk.openmm.app.pdbreporter import PDBReporter
+from simtk.openmm.app.statedatareporter import StateDataReporter
+from simtk.openmm.openmm import State
 from simtk.unit.quantity import Quantity
+
+SEED = 1234
+
+
+class Output:  # pylint: disable=too-few-public-methods
+    """
+    Helper class for reporters.
+
+    Parameters
+    ----------
+    kind : str
+        The reporter label, valid values are `pdb`, `data`, `screen`
+    target : path or file-like
+        The output file.
+    dt : int
+        Output frequency as number of time steps.
+
+    """
+    minimal_data = {'step': True, 'totalEnergy': True, 'temperature': True}
+    full_data = {
+        'step': True,
+        'time': True,
+        'potentialEnergy': True,
+        'totalEnergy': True,
+        'temperature': True
+    }
+    default_targets = {
+        'pdb': 'traj.pdb',
+        'data': 'data.csv',
+        'screen': sys.stdout
+    }
+
+    def __init__(self, kind, dt, *, target=None):
+        self.kind = kind
+        self.dt = dt
+        self.target = target or self.default_targets[kind]
+        self._reporter = None
+
+    @property
+    def reporter(self):
+        """Reporter object."""
+        if self.kind == 'pdb':
+            self._reporter = PDBReporter(self.target, self.dt)
+        elif self.kind == 'data':
+            self._reporter = StateDataReporter(self.target, self.dt,
+                                               **self.full_data)
+        elif self.kind == 'screen':
+            self._reporter = StateDataReporter(sys.stdout, self.dt,
+                                               **self.minimal_data)
+        else:
+            raise ValueError('Unkown reporter kind %s' % self.kind)
+        return self._reporter
 
 
 def create_langevin_context(system,
@@ -51,24 +107,35 @@ def compute_energy(context, forces=False):
     return vp if not forces else (vp, fp)
 
 
-def simulation_state(simulation, data=None, **kwargs):
+def simulation_state(simulation, data=None, pbc=False, groups=-1):
     """
-    Return a context state.
+    Return a context state containing the quantities defined in `data`.
 
     Parameters
     ----------
-    simulation : Simulation or Context object.
+    simulation : Simulation or Context or State object.
     data : list or str
         List of quantities to include in the context state.
         If a string, split into a list.
-        Valid values are: {positions, velocities, forces, energy, parameters}
-    kwargs : pass to context.getState
+        Valid values are: {'positions', 'velocities', 'forces', 'energy',
+        'parameters', 'parameter_derivatives'}
+    pbc : bool=False
+        Center molecules in the same cell.
+    groups : set=set(range(32))
+        Set of force groups indices to include when computing forces and
+        energies. Default: include all energies.
 
     Returns
     -------
     state object
 
     """
+    def camelcase(a):
+        """Convert string to camelcase."""
+        return a.title().replace('_', '')
+
+    if isinstance(simulation, State):  # if a State object, just return
+        return simulation
 
     try:
         context = simulation.context
@@ -79,11 +146,40 @@ def simulation_state(simulation, data=None, **kwargs):
         data = data.split()
 
     if data:
-        data = {'get' + a.title().replace('_', ''): True for a in data}
+        data = {'get' + camelcase(a): True for a in data}
     else:
         data = {}
 
-    return context.getState(**data, **kwargs)
+    return context.getState(**data, enforcePeriodicBox=pbc, groups=groups)
+
+
+def simulation_data(simulation, data=None, pbc=False, groups=-1):
+    """
+    Return data from simulation state.
+
+    Parameters
+    ----------
+    simulation : Simulation or Context object.
+    data : list or str
+        List of quantities to include in the context state.
+        If a string, split into a list.
+        Valid values are: {positions, velocities, forces, energy, parameters}
+    pbc : bool=False
+        Center molecules in the same cell.
+    groups : set=set(range(32))
+        Set of force groups indices to include when computing forces and
+        energies. Default: include all energies.
+
+    Returns
+    -------
+    dict
+        A dict containing the potential and kinetic energy
+
+    """
+
+    # state = simulation_state(simulation, data=data, pbc=pbc, groups=-1)
+
+    raise NotImplementedError
 
 
 def simulation_energy(simulation):
@@ -145,6 +241,25 @@ def simulation_forces(simulation):
     state = simulation_state(simulation, 'forces')
 
     return state.getForces(asNumpy=True)
+
+
+def simulation_velocities(simulation):
+    """
+    Return atomic velocities.
+
+    Parameters
+    ----------
+    simulation : Simulation or Context object.
+
+    Returns
+    -------
+    ndarray
+
+    """
+
+    state = simulation_state(simulation, 'velocities')
+
+    return state.getVelocities(asNumpy=True)
 
 
 def view_traj(xp, top):
@@ -213,3 +328,25 @@ def write_single_pdb(xp, top, target):
     else:
         with open(target, 'w') as fp:
             PDBFile.writeFile(top, xp, fp)
+
+
+def set_simulation_temperature(simulation, t=298):
+    """Initialize velocities according to temperature `t`."""
+    simulation.context.setVelocitiesToTemperature(t, 1)
+
+
+def add_reporters(simulation,
+                  outs=(Output('pdb', 1), Output('data',
+                                                 1), Output('screen', 100))):
+    """Define the simulation reporters.
+
+    Parameters
+    ----------
+    simulation : Simulation object.
+    outs : list of outputs
+
+    """
+
+    simulation.reporters = []
+    for out in outs:
+        simulation.reporters.append(out.reporter)
