@@ -10,8 +10,6 @@ from simtk.unit.quantity import Quantity
 
 from .simulation import simulation_energy
 
-SEED = 1234
-
 
 def create_langevin_context(system,
                             *,
