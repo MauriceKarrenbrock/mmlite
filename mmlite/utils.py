@@ -254,4 +254,17 @@ def write_single_pdb(xp, top, target):
 
 def set_simulation_temperature(simulation, t=298):
     """Initialize velocities according to temperature `t`."""
-    simulation.context.setVelocitiesToTemperature(t, 1)
+    try:
+        context = simulation.context
+    except AttributeError:
+        context = simulation
+    context.setVelocitiesToTemperature(t, 1)
+
+
+def set_simulation_positions(simulation, xp):
+    """Set positions to `xp`."""
+    try:
+        context = simulation.context
+    except AttributeError:
+        context = simulation
+    context.setPositions(xp)
