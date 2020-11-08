@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Output class for reporters."""
 import sys
+from pathlib import Path
 
 from simtk.openmm.app.pdbreporter import PDBReporter
 from simtk.openmm.app.statedatareporter import StateDataReporter
@@ -8,68 +9,48 @@ from simtk.openmm.app.statedatareporter import StateDataReporter
 __all__ = ['add_reporters']
 
 
-class Output:  # pylint: disable=too-few-public-methods
-    """
-    Helper class for reporters.
-
-    Parameters
-    ----------
-    kind : str
-        The reporter label, valid values are `pdb`, `data`, `screen`
-    target : path or file-like
-        The output file.
-    dt : int
-        Output frequency as number of time steps.
-
-    """
-    minimal_data = {'step': True, 'totalEnergy': True, 'temperature': True}
-    full_data = {
-        'step': True,
-        'time': True,
-        'potentialEnergy': True,
-        'totalEnergy': True,
-        'temperature': True
-    }
-    default_targets = {
-        'pdb': 'traj.pdb',
-        'data': 'data.csv',
-        'screen': sys.stdout
-    }
-
-    def __init__(self, kind, dt, *, target=None):
-        self.kind = kind
-        self.dt = dt
-        self.target = target or self.default_targets[kind]
-        self._reporter = None
-
-    @property
-    def reporter(self):
-        """Reporter object."""
-        if self.kind == 'pdb':
-            self._reporter = PDBReporter(self.target, self.dt)
-        elif self.kind == 'data':
-            self._reporter = StateDataReporter(self.target, self.dt,
-                                               **self.full_data)
-        elif self.kind == 'screen':
-            self._reporter = StateDataReporter(sys.stdout, self.dt,
-                                               **self.minimal_data)
-        else:
-            raise ValueError('Unkown reporter kind %s' % self.kind)
-        return self._reporter
-
-
 def add_reporters(simulation,
-                  outs=(Output('pdb', 1), Output('data',
-                                                 1), Output('screen', 100))):
+                  outs=('traj.pdb', 'data.csv', 'screen'),
+                  freqs=(1, 1, 100),
+                  screen=('step', 'totalEnergy', 'temperature'),
+                  data=('step', 'time', 'potentialEnergy', 'totalEnergy',
+                        'temperature')):
     """Define the simulation reporters.
 
     Parameters
     ----------
     simulation : Simulation object.
-    outs : list of outputs
+    outs : list
+        Output files.
+    freqs : list
+        Frequencies in time-steps.
+    screen : list
+        Quantities for stdout.
+    screen : list
+        Quantities for data file.
 
     """
 
     simulation.reporters = []
-    for out in outs:
-        simulation.reporters.append(out.reporter)
+    for fp, dt in zip(outs, freqs):
+        try:
+            fp = Path(fp)
+        except TypeError as e:
+            if hasattr(fp, 'write'):
+                reporter = StateDataReporter(fp, dt,
+                                             **{q: True
+                                                for q in screen})
+            else:
+                raise ValueError('Not a valid file: %r' % fp) from e
+        else:
+            if fp.suffix == '.pdb':
+                reporter = PDBReporter(str(fp), dt)
+            elif fp.suffix == '.csv':
+                reporter = StateDataReporter(str(fp), dt,
+                                             **{q: True
+                                                for q in data})
+            elif fp in 'screen stdout'.split():
+                reporter = StateDataReporter(sys.stdout, dt,
+                                             **{q: True
+                                                for q in screen})
+        simulation.reporters.append(reporter)
