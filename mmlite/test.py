@@ -1,42 +1,63 @@
 # -*- coding: utf-8 -*-
 """Test systems."""
 # pylint: disable=unused-import, too-few-public-methods
-from abc import ABC, abstractmethod
-
+import numpy as np
 from openmmtools.testsystems import TestSystem
-from simtk.openmm.app.topology import Topology
-from simtk.openmm.openmm import System
-from simtk.unit.quantity import Quantity
+from simtk import openmm as mm
+from simtk import unit
+from simtk.openmm import app
 
-test_register = {}
-
-
-def register_class(cls, register):
-    """Add a class to register."""
-    register[cls.__name__] = cls
-    return register
+from .model import empty_positions, empty_topology
 
 
-class TestType(type(ABC)):
-    """Metaclass for entropy estimators."""
-    def __new__(cls, name, bases, namespace, **kwargs):
-        test_class = type.__new__(cls, name, bases, namespace, **kwargs)
-        register_class(test_class, test_register)
-        return test_class
+def define_water_topology():
+    """Water molecule topology."""
+    topology = app.Topology()
+    # add `chain` to the topology
+    chain = topology.addChain()
+    # add a residue named "water" to the chain
+    residue = topology.addResidue('water', chain)
+    oxigen = app.Element.getByAtomicNumber(8)
+    hydrogen = app.Element.getByAtomicNumber(1)
+    atom0 = topology.addAtom('O', oxigen, residue)
+    atom1 = topology.addAtom('H', hydrogen, residue)
+    atom2 = topology.addAtom('H', hydrogen, residue)
+    topology.addBond(atom0, atom1)
+    topology.addBond(atom0, atom2)
+    return topology
 
 
-class Test(ABC, metaclass=TestType):
-    """
-    Class for generic test system.
+class Water(TestSystem):
+    """Create a single tip3pfb water molecule."""
+    def __init__(self, **kwargs):
 
-    Attributes
-    ----------
-    system : System object.
-    positions : Quantity object.
-    topology : Toplogy object.
+        TestSystem.__init__(self, **kwargs)
 
-    """
-    def __init__(self, system, positions, topology):
-        self._system = system
-        self._positions = positions
-        self._topology = topology
+        model = 'tip3pfb'
+        # load the forcefield
+        ff = app.ForceField('amber14/tip3pfb.xml')
+
+        # Create new Modeller instance.
+        modeller = app.Modeller(empty_topology(), empty_positions())
+
+        # Add solvent
+        modeller.addSolvent(ff, model=model, numAdded=1)
+
+        self.topology = modeller.getTopology()
+
+        # Get new topology and coordinates.
+        pos = modeller.getPositions()
+
+        # Convert positions to numpy.
+        self.positions = unit.Quantity(np.array(pos / pos.unit), pos.unit)
+
+        # Create OpenMM System.
+        self.system = ff.createSystem(
+            self.topology,
+            nonbondedCutoff=mm.NonbondedForce.NoCutoff,
+            constraints=None,
+            rigidWater=False,
+            removeCMMotion=False)
+
+        n_atoms = self.system.getNumParticles()
+        self.ndof = 3 * n_atoms
