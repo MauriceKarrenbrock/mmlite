@@ -36,7 +36,7 @@ def frame(xp, top):
     return view
 
 
-def simulation_data(fp, x='time', y='potential', stride=None, rolling=None):
+def simulation_data(fp, x='time', y='energy', stride=None, rolling=None):
     """Plot simulation data."""
     mapper = {
         'step': '#"Step"',
