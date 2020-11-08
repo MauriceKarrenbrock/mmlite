@@ -3,8 +3,6 @@
 # pylint: disable=protected-access,no-member
 from pathlib import Path
 
-import mdtraj
-import nglview
 import numpy as np
 import simtk.openmm as mm
 from simtk import unit
@@ -207,29 +205,6 @@ def simulation_velocities(simulation):
     state = simulation_state(simulation, 'velocities')
 
     return state.getVelocities(asNumpy=True)
-
-
-def view_traj(xp, top):
-    """Create an MDTraj Trajectory object and return a nglview view.
-
-    Parameters
-    ----------
-    xp : array-like
-    top : topology
-
-    Return
-    ------
-    nglview view object
-
-    """
-
-    mdtop = mdtraj.Topology.from_openmm(top)
-    traj = mdtraj.Trajectory(xp / unit.nanometers, mdtop)
-    view = nglview.show_mdtraj(traj)
-    if len(xp) < 10000:
-        view.add_ball_and_stick('all')
-    view.center(zoom=True)
-    return view
 
 
 def minimize(simulation, tol=10 * unit.kilojoule / unit.mole, max_iter=None):

@@ -9,12 +9,12 @@ from simtk.openmm.app.statedatareporter import StateDataReporter
 __all__ = ['add_reporters']
 
 
-def add_reporters(simulation,
-                  outs=('traj.pdb', 'data.csv', 'screen'),
-                  freqs=(1, 1, 100),
-                  screen=('step', 'totalEnergy', 'temperature'),
-                  data=('step', 'time', 'potentialEnergy', 'totalEnergy',
-                        'temperature')):
+def add_reporters(
+    simulation,
+    outs='traj.pdb data.csv screen'.split(),
+    freqs=(1, 1, 100),
+    screen='step totalEnergy temperature'.split(),
+    data='step time potentialEnergy totalEnergy temperature'.split()):
     """Define the simulation reporters.
 
     Parameters
@@ -33,6 +33,12 @@ def add_reporters(simulation,
 
     simulation.reporters = []
     for fp, dt in zip(outs, freqs):
+        if fp in 'screen stdout'.split():  # to stdout
+            reporter = StateDataReporter(sys.stdout, dt,
+                                         **{q: True
+                                            for q in screen})
+            simulation.reporters.append(reporter)
+            continue
         try:
             fp = Path(fp)
         except TypeError as e:
@@ -42,15 +48,11 @@ def add_reporters(simulation,
                                                 for q in screen})
             else:
                 raise ValueError('Not a valid file: %r' % fp) from e
-        else:
+        else:  # file path
             if fp.suffix == '.pdb':
                 reporter = PDBReporter(str(fp), dt)
             elif fp.suffix == '.csv':
                 reporter = StateDataReporter(str(fp), dt,
                                              **{q: True
                                                 for q in data})
-            elif fp in 'screen stdout'.split():
-                reporter = StateDataReporter(sys.stdout, dt,
-                                             **{q: True
-                                                for q in screen})
-        simulation.reporters.append(reporter)
+            simulation.reporters.append(reporter)
