@@ -1,14 +1,45 @@
 # -*- coding: utf-8 -*-
 """Test systems."""
-# pylint: disable=unused-import, too-few-public-methods
+# pylint: disable=unused-import, too-few-public-methods, no-member
+from numbers import Number
+
 import numpy as np
 from openmmtools.testsystems import TestSystem
 from simtk import openmm as mm
 from simtk import unit
 from simtk.openmm import app
+from simtk.openmm.openmm import VerletIntegrator
+
+from .simulation import set_simulation_positions, set_simulation_temperature
 
 
-class Water(TestSystem):
+class SimulationMixin:
+    """Helper methods for simulations."""
+    @property
+    def integrator(self):
+        """Default integrator."""
+        return VerletIntegrator
+
+    @property
+    def temperature(self):
+        """Default temperature."""
+        return unit.Quantity(298, unit.kelvin)
+
+    def simulation(self, integrator=None, temperature=None):
+        """Return a Simulation object."""
+        if integrator is None:
+            integrator = self.integrator(1 * unit.femtoseconds)
+        elif isinstance(integrator, Number):
+            integrator = self.integrator(integrator * unit.femtoseconds)
+        if temperature is None:
+            temperature = self.temperature
+        sim = app.Simulation(self.topology, self.system, integrator)
+        set_simulation_positions(sim, self.positions)
+        set_simulation_temperature(sim, temperature=temperature)
+        return sim
+
+
+class Water(SimulationMixin, TestSystem):
     """Create a single tip3pfb water molecule."""
     def __init__(self, **kwargs):
 

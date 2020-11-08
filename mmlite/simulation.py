@@ -3,6 +3,8 @@
 
 from simtk.openmm.openmm import State
 
+from mmlite import SEED
+
 
 def simulation_state(simulation, data=None, pbc=False, groups=-1):
     """
@@ -159,13 +161,14 @@ def simulation_velocities(simulation):
     return state.getVelocities(asNumpy=True)
 
 
-def set_simulation_temperature(simulation, t=298):
+def set_simulation_temperature(simulation, temperature=298):
     """Initialize velocities according to temperature `t`."""
     try:
         context = simulation.context
     except AttributeError:
         context = simulation
-    context.setVelocitiesToTemperature(t, 1)
+
+    context.setVelocitiesToTemperature(temperature, SEED)
 
 
 def set_simulation_positions(simulation, xp):
