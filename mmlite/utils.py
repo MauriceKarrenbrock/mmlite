@@ -3,7 +3,6 @@
 # pylint: disable=protected-access,no-member
 from pathlib import Path
 
-import numpy as np
 import simtk.openmm as mm
 from simtk import unit
 from simtk.openmm.app.pdbfile import PDBFile
@@ -39,18 +38,6 @@ def create_langevin_context(system,
         context.setVelocitiesToTemperature(temp)
 
     return context
-
-
-def compute_energy(context, forces=False):
-    """Return the potential energy and optionally, the forces."""
-    if forces:
-        state = context.getState(getEnergy=True, getForces=True)
-        fp = np.asarray(state.getForces()._value)
-    else:
-        state = context.getState(getEnergy=True)
-    vp = state.getPotentialEnergy()
-
-    return vp if not forces else (vp, fp)
 
 
 def minimize(simulation, tol=10 * unit.kilojoule / unit.mole, max_iter=None):
