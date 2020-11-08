@@ -1,4 +1,6 @@
-template_project
-================
+openmm-lite
+===========
 
-Helper functions for `openmm`
+Helper functions for ``openmm``
+
+Import as ``import mmlite``.
