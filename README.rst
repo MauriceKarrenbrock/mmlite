@@ -1,5 +1,5 @@
-openmm-lite
-===========
+mm-lite
+=======
 
 Helper functions for ``openmm``
 
