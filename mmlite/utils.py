@@ -108,14 +108,14 @@ def serialize_system(context, system, integrator):
 
 
 # pylint: disable=too-many-arguments
-def fetch_pdb(pdb,
-              chains='A',
-              ff=('amber99sbildn.xml', 'tip3p.xml'),
-              ph=7,
-              pad=10 * unit.angstroms,
-              nbonded=app.PME,
-              constraints=app.HBonds,
-              crystal_water=True):
+def prepare_pdb(pdb,
+                chains='A',
+                ff=('amber99sbildn.xml', 'tip3p.xml'),
+                ph=7,
+                pad=10 * unit.angstroms,
+                nbonded=app.PME,
+                constraints=app.HBonds,
+                crystal_water=True):
     """
     Fetch, solvate and minimize a protein PDB structure.
 
