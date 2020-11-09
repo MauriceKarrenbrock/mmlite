@@ -1,4 +1,4 @@
-mm-lite
+mmlite
 =======
 
 Helper functions for ``openmm``
