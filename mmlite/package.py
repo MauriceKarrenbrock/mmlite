@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """openmm_lite package info"""
-__title__ = 'openmm-lite'
+__title__ = 'mmlite'
 __version__ = '0.1'
 __author__ = 'Simone Marsili'
 __summary__ = ''
-__url__ = 'https://github.com/simomarsili/openmm-lite'
+__url__ = 'https://github.com/simomarsili/mmlite'
 __email__ = 'simo.marsili@gmail.com'
 __license__ = 'BSD 3-Clause'
 __copyright__ = 'Copyright (c) 2020, Simone Marsili'
