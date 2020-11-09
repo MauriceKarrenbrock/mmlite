@@ -2,3 +2,5 @@ mdtraj
 nglview
 numpy
 openmm
+openmmtools
+pandas
