@@ -1,62 +1,102 @@
 # -*- coding: utf-8 -*-
 """Plotters."""
 # pylint: disable=no-member
+import copy
+
 import matplotlib.pyplot as plt
 import mdtraj
 import nglview
 import pandas
 from simtk import unit
 
-nglview_defaults = [
-    {
+# see:
+# http://nglviewer.org/ngl/api/manual/selection-language.html
+# http://nglviewer.org/ngl/api/manual/molecular-representations.html
+default_representations = {
+    'protein': {
         'type': 'cartoon',
         'params': {
             'sele': 'protein'
         }
-        # }, {
-        # 'type': 'surface',
-        # 'params': {
-        # 'sele': 'protein',
-        # 'opacity': 0.1
-        # }
     },
-    {
+    'ligand': {
         'type': 'ball+stick',
         'params': {
-            'sele': 'hetero'
+            'sele': 'ligand'
         }
-    }
-]
+    },
+    'ion': {
+        'type': 'ball+stick',
+        'params': {
+            'sele': 'ion'
+        }
+    },
+    'water': {
+        'type': 'line',
+        'params': {
+            'sele': 'water',
+            'opacity': 0.1
+        }
+    },
+}
 
 
-def plot_traj(fp,
-              stride=None,
-              atom_indices=None,
-              ball_and_stick=False,
-              water=False):
-    """Return a trajectory view."""
+def _setup_view(view, **kwargs):
+    """Setup view representations."""
+    reps = copy.deepcopy(default_representations)
+    for key, val in kwargs.items():
+        if isinstance(val, str):  # set or override defaults
+            reps[key] = {'type': val, 'params': {'sele': key}}
+        if not val:  # remove if in defaults
+            if key in reps:
+                reps.pop(key)
+    view.representations = list(reps.values())
+    view.camera = 'orthographic'
+
+
+def show_mdtraj(fp, stride=None, atom_indices=None, **kwargs):
+    """
+    Return a trajectory view.
+
+    Parameters
+    ----------
+    fp : filename or list of filenames
+    stride : int, optional
+        Read every stride-th frame
+    atom_indices : array, optional
+        Read only a subset of the atoms coordinates from the file
+    kwargs : dict
+        Molecular representation of selections, e.g. protein='cartoon'
+
+    Returns
+    -------
+    View object
+
+    """
     traj = mdtraj.load(fp, stride=stride, atom_indices=atom_indices)
     view = nglview.show_mdtraj(traj)
-    view.representations = nglview_defaults
-    if ball_and_stick:
-        try:
-            ball_and_stick = ball_and_stick.split()
-        except AttributeError:
-            pass
-        view.representations.extend([{
-            'type': 'ball+stick',
-            'params': {
-                'sele': x
-            }
-        } for x in ball_and_stick])
-    if water:
-        view.representations.append({
-            'type': 'ball+stick',
-            'params': {
-                'sele': 'water'
-            }
-        })
-    # print(view.representations)
+    _setup_view(view, **kwargs)
+    return view
+
+
+def show_file(fp, **kwargs):
+    """
+    Return a structure view.
+
+    Parameters
+    ----------
+    fp : filename or list of filenames
+    kwargs : dict
+        Molecular representation of selections, e.g. protein='cartoon'
+
+    Returns
+    -------
+    View object
+
+    """
+    view = nglview.show_file(fp)
+    _setup_view(view, **kwargs)
+    print(view.representations)
     return view
 
 
