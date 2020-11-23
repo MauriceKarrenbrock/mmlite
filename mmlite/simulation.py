@@ -6,6 +6,31 @@ from simtk.openmm.openmm import State
 from mmlite import SEED
 
 
+def camelcase(a):
+    """Convert string to camelcase."""
+    return a.title().replace('_', '')
+
+
+def _getter(name):
+    """getQuantityName from quantity_name."""
+    return 'get' + camelcase(name)
+
+
+def state_data(state, data=None):
+    """Return data from context state."""
+
+    if isinstance(data, str):
+        data = data.split()
+
+    answer = {}
+    for q in data:
+        if q in 'forces periodic_box_vectors positions velocities'.split():
+            answer[q] = getattr(state, _getter(q))(asNumpy=True)
+        else:
+            answer[q] = getattr(state, _getter(q))()
+    return answer
+
+
 def simulation_state(simulation, data=None, pbc=False, groups=-1):
     """
     Return a context state containing the quantities defined in `data`.
@@ -29,10 +54,6 @@ def simulation_state(simulation, data=None, pbc=False, groups=-1):
     state object
 
     """
-    def camelcase(a):
-        """Convert string to camelcase."""
-        return a.title().replace('_', '')
-
     if isinstance(simulation, State):  # if a State object, just return
         return simulation
 
