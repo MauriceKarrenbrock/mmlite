@@ -52,6 +52,7 @@ def _setup_view(view, **kwargs):
                 reps.pop(key)
     view.representations = list(reps.values())
     view.camera = 'orthographic'
+    view.center(zoom=True)
 
 
 def show_mdtraj(fp, stride=None, atom_indices=None, **kwargs):
