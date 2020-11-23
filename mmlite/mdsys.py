@@ -20,7 +20,7 @@ from .simulation import (set_simulation_positions, set_simulation_temperature,
 logger = logging.getLogger(__name__)
 
 
-class MdSystem(TestSystem, ABC):
+class MdSys(TestSystem, ABC):
     """Base class for storing data for a simulation.
 
     Basic attributes are:
@@ -132,7 +132,7 @@ class MdSystem(TestSystem, ABC):
         return self.simulation.reporters
 
 
-class Water(MdSystem):
+class Water(MdSys):
     """Create a single tip3pfb water molecule."""
     def __init__(self, *args, **kwargs):
 
