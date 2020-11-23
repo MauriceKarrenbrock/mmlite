@@ -6,7 +6,6 @@ from abc import ABC  # python >= 3.4
 
 import mdtraj
 import nglview
-import numpy as np
 from openmmtools.testsystems import TestSystem
 from simtk import openmm as mm
 from simtk import unit
@@ -26,7 +25,8 @@ class MdSys(TestSystem, ABC):
     Basic attributes are:
     * topology
     * positions
-    * system  # system = topology + forcefield; contains forces
+    * system  #system = topology + forcefield; contains forces
+        completely specifies how to compute forces and energies
     * simulation  # simulation = system + topology + integrator
 
     Parameters
@@ -40,6 +40,8 @@ class MdSys(TestSystem, ABC):
     """
     def __init__(self, *args, **kwargs):
         self.integrator_class = kwargs.pop('integrator', VerletIntegrator)
+        if isinstance(self.integrator_class, str):
+            self.integrator_class = getattr(mm.openmm, self.integrator_class)
         self.dt = kwargs.pop('dt', 2.0 * unit.femtoseconds)
         self.friction = kwargs.pop('friction', 91.0 / unit.picosecond)
         self.temperature = kwargs.pop('temperature', 298.0 * unit.kelvin)
@@ -47,6 +49,17 @@ class MdSys(TestSystem, ABC):
         self._simulation = None
 
     @property
+    def n_particles(self):
+        """Total number of particles."""
+        return self.system.getNumParticles()
+
+    @property
+    def masses(self):
+        """List of particles masses."""
+        return [
+            self.system.getNumParticles(i) for i in range(self.n_particles)
+        ]
+
     def integrator(self):
         """Return a fresh integrator."""
         if self.integrator_class.__name__ == 'VerletIntegrator':
@@ -63,11 +76,28 @@ class MdSys(TestSystem, ABC):
         """Return a fresh Verlet integrator."""
         return mm.VerletIntegrator(self.dt)
 
+    def context(self, xp=None, platform=None, properties=None):
+        """Define an integrator and assign to context."""
+        # We have to create a new integrator for every Context since it takes
+        # ownership of the integrator we pass it
+        args = [self.system, self.integrator()]
+        if platform is not None:
+            platform = mm.Platform.getPlatformByName(platform)
+            args.append(platform)
+        if properties is not None:
+            args.append(properties)
+        context = mm.Context(*args)
+        if xp is not None:
+            context.setPositions(xp)
+        elif self.positions is not None:
+            context.setPositions(self.positions)
+        return context
+
     @property
     def simulation(self):
         """Return a Simulation object."""
         if not self._simulation:
-            sim = app.Simulation(self.topology, self.system, self.integrator)
+            sim = app.Simulation(self.topology, self.system, self.integrator())
             set_simulation_positions(sim, self.positions)
             set_simulation_temperature(sim, temperature=self.temperature)
             # add reporters
@@ -130,46 +160,3 @@ class MdSys(TestSystem, ABC):
     def reporters(self):
         """List the simulation reporters."""
         return self.simulation.reporters
-
-
-class Water(MdSys):
-    """Create a single tip3pfb water molecule."""
-    def __init__(self, *args, **kwargs):
-
-        super().__init__(*args, **kwargs)
-
-        # load the forcefield for tip3pfb
-        ff = app.ForceField('amber14/tip3pfb.xml')
-
-        self.topology = self.def_topology()
-        self.positions = unit.Quantity(
-            np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]]),
-            unit.angstroms)
-
-        # Create OpenMM System.
-        self.system = ff.createSystem(
-            self.topology,
-            nonbondedCutoff=mm.NonbondedForce.NoCutoff,
-            constraints=None,
-            rigidWater=False,
-            removeCMMotion=True)
-
-        n_atoms = self.system.getNumParticles()
-        self.ndof = 3 * n_atoms
-
-    @staticmethod
-    def def_topology():
-        """Water molecule topology."""
-        topology = app.Topology()
-        # add `chain` to the topology
-        chain = topology.addChain()
-        # add a residue named "water" to the chain
-        residue = topology.addResidue('water', chain)
-        oxigen = app.Element.getByAtomicNumber(8)
-        hydrogen = app.Element.getByAtomicNumber(1)
-        atom0 = topology.addAtom('O', oxigen, residue)
-        atom1 = topology.addAtom('H', hydrogen, residue)
-        atom2 = topology.addAtom('H', hydrogen, residue)
-        topology.addBond(atom0, atom1)
-        topology.addBond(atom0, atom2)
-        return topology
