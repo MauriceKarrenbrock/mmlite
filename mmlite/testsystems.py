@@ -13,6 +13,7 @@ from simtk import unit
 from simtk.openmm import app
 from simtk.openmm.openmm import LangevinIntegrator, VerletIntegrator
 
+from .output import add_screen_output, add_state_output, add_trajectory_output
 from .simulation import (set_simulation_positions, set_simulation_temperature,
                          simulation_energy)
 
@@ -21,6 +22,12 @@ logger = logging.getLogger(__name__)
 
 class MdSystem(TestSystem, ABC):
     """Base class for storing data for a simulation.
+
+    Basic attributes are:
+    * topology
+    * positions
+    * system  # system = topology + forcefield; contains forces
+    * simulation  # simulation = system + topology + integrator
 
     Parameters
     ----------
@@ -37,6 +44,7 @@ class MdSystem(TestSystem, ABC):
         self.friction = kwargs.pop('friction', 91.0 / unit.picosecond)
         self.temperature = kwargs.pop('temperature', 298.0 * unit.kelvin)
         super().__init__(*args, **kwargs)
+        self._simulation = None
 
     @property
     def integrator(self):
@@ -58,21 +66,20 @@ class MdSystem(TestSystem, ABC):
     @property
     def simulation(self):
         """Return a Simulation object."""
-        sim = app.Simulation(self.topology, self.system, self.integrator)
-        set_simulation_positions(sim, self.positions)
-        set_simulation_temperature(sim, temperature=self.temperature)
-        return sim
+        if not self._simulation:
+            sim = app.Simulation(self.topology, self.system, self.integrator)
+            set_simulation_positions(sim, self.positions)
+            set_simulation_temperature(sim, temperature=self.temperature)
+            # add reporters
+            add_trajectory_output(sim)
+            add_screen_output(sim)
+            add_state_output(sim)
+            self._simulation = sim
+        return self._simulation
 
-    def context(self, xp=None, random_vp=True):
-        """Return a simulation context."""
-        context = mm.Context(self.system, self.integrator)
-        if xp:
-            context.setPositions(xp)
-        else:
-            context.setPositions(self.positions)
-        if random_vp:
-            context.setVelocitiesToTemperature(self.temperature)
-        return context
+    def reset(self):
+        """Reinitialize the simulation attribute."""
+        self._simulation = None
 
     @property
     def mdtraj(self):
@@ -107,13 +114,22 @@ class MdSystem(TestSystem, ABC):
 
         """
 
-        ctx = self.context()
+        ctx = self.simulation.context
         max_iter = max_iter or 0
         logger.info('Energy before minimization: %s',
                     simulation_energy(ctx)['potential'])
         mm.LocalEnergyMinimizer.minimize(ctx, tol, maxIterations=max_iter)
         logger.info('Energy after minimization: %s',
                     simulation_energy(ctx)['potential'])
+
+    def step(self, *args, **kwargs):
+        """Advance the system by a specified number of time steps."""
+        self.simulation.step(*args, **kwargs)
+
+    @property
+    def reporters(self):
+        """List the simulation reporters."""
+        return self.simulation.reporters
 
 
 class Water(MdSystem):
