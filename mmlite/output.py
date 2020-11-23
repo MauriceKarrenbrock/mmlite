@@ -9,6 +9,38 @@ from simtk.openmm.app.statedatareporter import StateDataReporter
 __all__ = ['add_reporters']
 
 
+def add_trajectory_output(simulation, fp='traj.pdb', dt=1):
+    """Add a trajectory output to simulation object reporters."""
+    try:
+        fp = Path(fp)
+    except TypeError as e:
+        raise ValueError('Not a valid output: %r' % fp) from e
+    reporter = PDBReporter(str(fp), dt)
+    simulation.reporters.append(reporter)
+
+
+def add_screen_output(simulation,
+                      dt=100,
+                      data='step totalEnergy temperature'.split()):
+    """Add screen output to simulation object reporters."""
+    reporter = StateDataReporter(sys.stdout, dt, **{q: True for q in data})
+    simulation.reporters.append(reporter)
+
+
+def add_state_output(
+    simulation,
+    fp='traj.csv',
+    dt=100,
+    data='step time potentialEnergy totalEnergy temperature'.split()):
+    """Add state data output to simulation object reporters."""
+    try:
+        fp = Path(fp)
+    except TypeError as e:
+        raise ValueError('Not a valid output: %r' % fp) from e
+    reporter = StateDataReporter(sys.stdout, dt, **{q: True for q in data})
+    simulation.reporters.append(reporter)
+
+
 def add_reporters(
     simulation,
     outs='traj.pdb data.csv screen'.split(),
