@@ -43,17 +43,15 @@ class System(ABC):
         self._system = None
         self._positions = None
 
-        try:
-            self._usesPBC = self.system.usesPeriodicBoundaryConditions()
-        # OpenMM just raises Exception if it's not implemented everywhere
-        except Exception:  # pylint: disable=broad-except
-            self._usesPBC = self.topology.getUnitCellDimensions() is not None
-
-    @staticmethod
-    def read_system_from_xml(source):
+    def read_system_from_xml(self, source):
         """Read system from file."""
-        with open(source, 'r') as f:
-            return mm.XmlSerializer.deserialize(f.read())
+        with open(source, 'r') as fp:
+            self.system = mm.XmlSerializer.deserialize(fp.read())
+
+    def write_system_to_xml(self, target):
+        """Read system from file."""
+        with open(target, 'w') as fp:
+            print(mm.XmlSerializer.serialize(self.system), file=fp)
 
     @property
     @abstractmethod
