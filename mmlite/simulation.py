@@ -67,6 +67,12 @@ class Simulation(mmapp.Simulation):
         add_screen_output(self)
         add_state_output(self)
 
+        try:
+            self._usesPBC = self.system.usesPeriodicBoundaryConditions()
+            # OpenMM just raises Exception if it's not implemented everywhere
+        except Exception:  # pylint: disable=broad-except
+            self._usesPBC = self.topology.getUnitCellDimensions() is not None
+
     def setup_context(self,
                       xp=None,
                       temperature=True,
@@ -185,9 +191,14 @@ class Simulation(mmapp.Simulation):
     def positions(self, value):
         self.context.setPositions(value)
 
+    def update_state(self, data='positions'):
+        """Update simulation state."""
+        self._state = simulation_state(self, data=data)
+
     def get_state(self, data='positions'):
         """Return simulation state."""
-        self._state = simulation_state(self, data=data)
+        if self._state is None:
+            self.update_state(data)
         return self._state
 
     state = property(get_state)
@@ -196,6 +207,10 @@ class Simulation(mmapp.Simulation):
     def state(self, value):
         self._state = value
         self.context.setState(value)
+
+    def data(self, qs):
+        """Return quantities from simulation state."""
+        return state_data(self.state, qs)
 
 
 def camelcase(a):
@@ -214,13 +229,13 @@ def state_data(state, data=None):
     if isinstance(data, str):
         data = data.split()
 
-    answer = {}
+    result = []
     for q in data:
         if q in 'forces periodic_box_vectors positions velocities'.split():
-            answer[q] = getattr(state, _getter(q))(asNumpy=True)
+            result.append(getattr(state, _getter(q))(asNumpy=True))
         else:
-            answer[q] = getattr(state, _getter(q))()
-    return answer
+            result.append(getattr(state, _getter(q))())
+    return result
 
 
 def simulation_state(simulation, data=None, pbc=False, groups=-1):
