@@ -12,6 +12,7 @@ import numpy as np
 import simtk.openmm as mm
 from simtk import unit
 
+import mmlite.plot
 from mmlite import defaults
 
 logger = logging.getLogger(__name__)
@@ -21,10 +22,12 @@ class System(ABC):
     """
     System class.
 
-    abstract properties
     * topology
     * system
     * positions
+
+    abstractmethod
+    * setup()
 
     Main attributes:
     * temperature
@@ -38,10 +41,12 @@ class System(ABC):
 
         self.temperature = defaults.temperature
         self.friction = defaults.friction
+        self._system = None
         self._topology = None
         self._mdtraj_topology = None
-        self._system = None
         self._positions = None
+
+        self.setup()
 
     def read_system_from_xml(self, source):
         """Read system from file."""
@@ -54,7 +59,6 @@ class System(ABC):
             print(mm.XmlSerializer.serialize(self.system), file=fp)
 
     @property
-    @abstractmethod
     def topology(self):
         """Starting positions."""
         return self._topology
@@ -66,9 +70,9 @@ class System(ABC):
         self._mdtraj_topology = None
 
     @property
-    @abstractmethod
     def system(self):
         """Starting positions."""
+        return self._system
 
     @system.setter
     def system(self, value):
@@ -76,17 +80,13 @@ class System(ABC):
         self._system = value
 
     @property
-    @abstractmethod
     def positions(self):
         """The positions of the system."""
-        if self._positions is None:  # set to the starting coordinates
-            pass  # implement with initial positions
         return self._positions
 
     @positions.setter
     def positions(self, value):
         self._positions = value
-        return self._topology
 
     @property
     def mdtraj_topology(self):
@@ -118,45 +118,62 @@ class System(ABC):
         top = mdtraj.Topology.from_openmm(self.topology)
         return mdtraj.Trajectory([self.positions / unit.nanometers], top)
 
-    @property
-    def view(self):
+    def get_view(self, **kwargs):
         """Return a nglview view for the actual positions."""
         view = nglview.show_mdtraj(self.mdtraj)
-        if len(self.positions) < 10000:
-            view.add_ball_and_stick('all')
-        view.center(zoom=True)
+        mmlite.plot.setup_view(view, **kwargs)
         return view
+
+    @property
+    def view(self):
+        """Default ngl view."""
+        return self.get_view()
+
+    def from_pdb(self, pdb, *, ff=('amber99sb.xml', 'tip3p.xml'), **kwargs):
+        """
+        Setup System object from pdb file.
+
+        Optional kwargs are passed to forcefield createSystem method
+
+        Parameters
+        ----------
+        pdb : filename
+        ff : list
+            List of forcefield files
+
+        """
+        pdb = mm.app.PDBFile(pdb)
+        forcefield = mm.app.ForceField(*ff)
+        if not kwargs:
+            kwargs = {
+                'nonbondedMethod': mm.app.PME,
+                'nonbondedCutoff': 1 * unit.nanometer,
+                'constraints': mm.app.HBonds
+            }
+        self._topology = pdb.getTopology()
+        self._system = forcefield.createSystem(pdb.topology, **kwargs)
+        self._positions = pdb.getPositions(asNumpy=True)
+
+    @abstractmethod
+    def setup(self):
+        """Define self._system, self._topology, self._positions."""
 
 
 class Water(System):
     """Create a single tip3pfb water molecule."""
-    @property
-    def topology(self):
-        if self._topology is None:
-            self._topology = self.def_topology()
-        return self._topology
-
-    @property
-    def positions(self):
-        if self._positions is None:
-            self._positions = unit.Quantity(
-                np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]]),
-                unit.angstroms)
-        return self._positions
-
-    @property
-    def system(self):
-        """Create OpenMM System."""
-        if self._system is None:
-            # load the forcefield for tip3pfb
-            ff = mm.app.ForceField('amber14/tip3pfb.xml')
-            self._system = ff.createSystem(
-                self.topology,
-                nonbondedCutoff=mm.NonbondedForce.NoCutoff,
-                constraints=None,
-                rigidWater=False,
-                removeCMMotion=True)
-        return self._system
+    def setup(self):
+        self._topology = self.def_topology()
+        self._positions = unit.Quantity(
+            np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]]),
+            unit.angstroms)
+        # load the forcefield for tip3pfb
+        ff = mm.app.ForceField('amber14/tip3pfb.xml')
+        self._system = ff.createSystem(
+            self.topology,
+            nonbondedCutoff=mm.NonbondedForce.NoCutoff,
+            constraints=None,
+            rigidWater=False,
+            removeCMMotion=True)
 
     @staticmethod
     def def_topology():
@@ -174,3 +191,12 @@ class Water(System):
         topology.addBond(atom0, atom1)
         topology.addBond(atom0, atom2)
         return topology
+
+
+class Villin(System):
+    """Solvated villin."""
+
+    pdbfile = '/home/simo/scr/mmlite/data/villin.pdb'
+
+    def setup(self):
+        self.from_pdb(self.pdbfile)
