@@ -41,7 +41,7 @@ default_representations = {
 }
 
 
-def _setup_view(view, **kwargs):
+def setup_view(view, **kwargs):
     """Setup view representations."""
     reps = copy.deepcopy(default_representations)
     for key, val in kwargs.items():
@@ -76,7 +76,7 @@ def show_mdtraj(fp, stride=None, atom_indices=None, **kwargs):
     """
     traj = mdtraj.load(fp, stride=stride, atom_indices=atom_indices)
     view = nglview.show_mdtraj(traj)
-    _setup_view(view, **kwargs)
+    setup_view(view, **kwargs)
     return view
 
 
@@ -96,7 +96,7 @@ def show_file(fp, **kwargs):
 
     """
     view = nglview.show_file(fp)
-    _setup_view(view, **kwargs)
+    setup_view(view, **kwargs)
     return view
 
 
