@@ -9,7 +9,7 @@ from simtk.openmm.app.statedatareporter import StateDataReporter
 __all__ = ['add_reporters']
 
 
-def add_trajectory_output(simulation, fp='traj.pdb', dt=1):
+def add_trajectory_output(simulation, fp='traj.pdb', dt=10):
     """Add a trajectory output to simulation object reporters."""
     try:
         fp = Path(fp)
