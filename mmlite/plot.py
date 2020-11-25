@@ -97,7 +97,6 @@ def show_file(fp, **kwargs):
     """
     view = nglview.show_file(fp)
     _setup_view(view, **kwargs)
-    print(view.representations)
     return view
 
 
