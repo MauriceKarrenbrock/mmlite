@@ -51,6 +51,7 @@ class Simulation(mmapp.Simulation):
                          platformProperties=platform_properties,
                          state=state)
 
+        self._state = None
         self._integrator = None  # current integrator
         # Initialize a context containing the current state of the simulation
         # If state is passed, initialize from state
@@ -91,8 +92,6 @@ class Simulation(mmapp.Simulation):
         context = mm.Context(*args)
         if xp is not None:
             context.setPositions(xp)
-        elif self.sys.positions is not None:
-            context.setPositions(self.sys.positions)
         if temperature:
             context.setVelocitiesToTemperature(self.sys.temperature, SEED)
         # Initialize from state
@@ -235,7 +234,7 @@ def state_data(state, data=None):
             result.append(getattr(state, _getter(q))(asNumpy=True))
         else:
             result.append(getattr(state, _getter(q))())
-    return result
+    return result if len(data) > 1 else result[0]
 
 
 def simulation_state(simulation, data=None, pbc=False, groups=-1):
