@@ -4,7 +4,6 @@
 # pylint: disable=too-many-instance-attributes
 
 import logging
-from abc import ABC, abstractmethod  # python >= 3.4
 
 import mdtraj
 import nglview
@@ -18,7 +17,7 @@ from mmlite import defaults
 logger = logging.getLogger(__name__)
 
 
-class System(ABC):
+class System:
     """
     System class.
 
@@ -37,16 +36,28 @@ class System(ABC):
     * positions
 
     """
-    def __init__(self):
+    def __init__(  # pylint: disable=too-many-arguments
+            self,
+            topology=None,
+            system=None,
+            positions=None,
+            temperature=None,
+            friction=None):
 
-        self.temperature = defaults.temperature
-        self.friction = defaults.friction
-        self._system = None
-        self._topology = None
+        self.temperature = temperature or defaults.temperature
+        self.friction = friction or defaults.friction
+        self._system = system
+        self._topology = topology
         self._mdtraj_topology = None
-        self._positions = None
+        self._positions = positions
 
-        self.setup()
+        if not self._system and self.__class__ is not System:
+            try:
+                self.setup()
+            except NotImplementedError as missing_setup:
+                raise NotImplementedError(
+                    'Inherited classes mut implement a setup method'
+                ) from missing_setup
 
     def read_system_from_xml(self, source):
         """Read system from file."""
@@ -129,6 +140,10 @@ class System(ABC):
         """Default ngl view."""
         return self.get_view()
 
+    def setup(self):
+        """Define self._system, self._topology, self._positions."""
+        raise NotImplementedError
+
     def from_pdb(self, pdb, *, ff=('amber99sb.xml', 'tip3p.xml'), **kwargs):
         """
         Setup System object from pdb file.
@@ -153,10 +168,6 @@ class System(ABC):
         self._topology = pdb.getTopology()
         self._system = forcefield.createSystem(pdb.topology, **kwargs)
         self._positions = pdb.getPositions(asNumpy=True)
-
-    @abstractmethod
-    def setup(self):
-        """Define self._system, self._topology, self._positions."""
 
 
 class Water(System):
@@ -191,6 +202,14 @@ class Water(System):
         topology.addBond(atom0, atom1)
         topology.addBond(atom0, atom2)
         return topology
+
+    def __call__(self):
+        return self._topology, self._system, self._positions
+
+    def __repr__(self):
+        name = self.__class__.__name__
+        return '%s(topology=%r,\n\tsystem=%r,\n\tposition=%r)' % (name,
+                                                                  *self())
 
 
 class Villin(System):
