@@ -10,6 +10,7 @@ from simtk import unit
 from simtk.openmm import XmlSerializer
 from simtk.openmm.openmm import LangevinIntegrator, State, VerletIntegrator
 
+import mmlite.defaults
 from mmlite import SEED
 
 from .output import add_screen_output, add_state_output, add_trajectory_output
@@ -76,7 +77,7 @@ class Simulation(mmapp.Simulation):
 
     def setup_context(self,
                       xp=None,
-                      temperature=True,
+                      temperature=mmlite.defaults.temperature,
                       platform=None,
                       properties=None,
                       state=None):
@@ -93,7 +94,7 @@ class Simulation(mmapp.Simulation):
         if xp is not None:
             context.setPositions(xp)
         if temperature:
-            context.setVelocitiesToTemperature(self.sys.temperature, SEED)
+            context.setVelocitiesToTemperature(temperature, SEED)
         # Initialize from state
         if state is not None:
             with open(state, 'r') as f:
@@ -114,13 +115,16 @@ class Simulation(mmapp.Simulation):
     def integrator(self, value):
         self._integrator = value
 
-    def create_integrator(self, name='verlet', dt=1 * unit.femtoseconds):
+    @staticmethod
+    def create_integrator(name='verlet', dt=1 * unit.femtoseconds, **kwargs):
         """Return a fresh integrator."""
         if name == 'verlet':
             return VerletIntegrator(dt)
         if name == 'langevin':
-            return LangevinIntegrator(self.sys.temperature, self.sys.friction,
-                                      dt)
+            temperature = kwargs.pop('temperature',
+                                     mmlite.defaults.temperature)
+            friction = kwargs.pop('friction', mmlite.defaults.friction)
+            return LangevinIntegrator(temperature, friction, dt)
         raise ValueError(name)
 
     def serialize(self):
