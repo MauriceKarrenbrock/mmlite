@@ -163,3 +163,7 @@ class Villin(SystemMixin, TestSystem):
     """Solvated villin."""
 
     pdbfile = '/home/simo/scr/mmlite/data/villin.pdb'
+
+    def __init__(self):
+        super().__init__()
+        self.from_pdb(self.pdbfile)
