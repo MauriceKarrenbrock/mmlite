@@ -104,3 +104,9 @@ cookiecutter-pypackage-env/
 # local virtual environment
 ve
 .venv
+
+notebooks/*
+!notebooks/1yi6.ipynb
+!notebooks/water.ipynb
+
+data/*
