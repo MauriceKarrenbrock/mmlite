@@ -3,62 +3,33 @@
 # pylint: disable=no-member
 # pylint: disable=too-many-instance-attributes
 
+import copy
 import logging
 
 import mdtraj
 import nglview
 import numpy as np
 import simtk.openmm as mm
+from openmmtools.testsystems import TestSystem
+from parmed import load_file
 from simtk import unit
 
 import mmlite.plot
-from mmlite import defaults
 
 logger = logging.getLogger(__name__)
 
+# https://github.com/openmm/openmm/issues/2330
+SYSTEM_DEFAULTS = {
+    'nonbondedMethod': mm.app.PME,
+    'nonbondedCutoff': 1.0 * unit.nanometer,
+    'constraints': mm.app.HBonds,
+    'rigidWater': True,
+    'ewaldErrorTolerance': 5.e-4
+}
 
-class System:
-    """
-    System class.
 
-    * topology
-    * system
-    * positions
-
-    abstractmethod
-    * setup()
-
-    Main attributes:
-    * temperature
-    * friction
-    * topology
-    * system
-    * positions
-
-    """
-    def __init__(  # pylint: disable=too-many-arguments
-            self,
-            topology=None,
-            system=None,
-            positions=None,
-            temperature=None,
-            friction=None):
-
-        self.temperature = temperature or defaults.temperature
-        self.friction = friction or defaults.friction
-        self._system = system
-        self._topology = topology
-        self._mdtraj_topology = None
-        self._positions = positions
-
-        if not self._system and self.__class__ is not System:
-            try:
-                self.setup()
-            except NotImplementedError as missing_setup:
-                raise NotImplementedError(
-                    'Inherited classes mut implement a setup method'
-                ) from missing_setup
-
+class SystemMixin:
+    """Add methods to TestSystem."""
     def read_system_from_xml(self, source):
         """Read system from file."""
         with open(source, 'r') as fp:
@@ -68,48 +39,6 @@ class System:
         """Read system from file."""
         with open(target, 'w') as fp:
             print(mm.XmlSerializer.serialize(self.system), file=fp)
-
-    @property
-    def topology(self):
-        """Starting positions."""
-        return self._topology
-
-    @topology.setter
-    def topology(self, value):
-        """Set the starting positions."""
-        self._topology = value
-        self._mdtraj_topology = None
-
-    @property
-    def system(self):
-        """Starting positions."""
-        return self._system
-
-    @system.setter
-    def system(self, value):
-        """Set the starting positions."""
-        self._system = value
-
-    @property
-    def positions(self):
-        """The positions of the system."""
-        return self._positions
-
-    @positions.setter
-    def positions(self, value):
-        self._positions = value
-
-    @property
-    def mdtraj_topology(self):
-        """The mdtraj.Topology object corresponding to the system."""
-        if self._mdtraj_topology is None:
-            self._mdtraj_topology = mdtraj.Topology.from_openmm(self._topology)
-        return self._mdtraj_topology
-
-    @property
-    def name(self):
-        """The name of the system."""
-        return self.__class__.__name__
 
     @property
     def n_particles(self):
@@ -140,10 +69,6 @@ class System:
         """Default ngl view."""
         return self.get_view()
 
-    def setup(self):
-        """Define self._system, self._topology, self._positions."""
-        raise NotImplementedError
-
     def from_pdb(self, pdb, *, ff=('amber99sb.xml', 'tip3p.xml'), **kwargs):
         """
         Setup System object from pdb file.
@@ -159,20 +84,42 @@ class System:
         """
         pdb = mm.app.PDBFile(pdb)
         forcefield = mm.app.ForceField(*ff)
-        if not kwargs:
-            kwargs = {
-                'nonbondedMethod': mm.app.PME,
-                'nonbondedCutoff': 1 * unit.nanometer,
-                'constraints': mm.app.HBonds
-            }
+        args = copy.deepcopy(SYSTEM_DEFAULTS)
+        args.update(kwargs)
         self._topology = pdb.getTopology()
-        self._system = forcefield.createSystem(pdb.topology, **kwargs)
+        self._system = forcefield.createSystem(pdb.topology, **args)
         self._positions = pdb.getPositions(asNumpy=True)
 
+    def from_gro(self, gro, top, **kwargs):
+        """
+        Setup System object from Gromacs .gro and .top file.
 
-class Water(System):
+        Optional kwargs are passed to parmed topology createSystem method
+
+        Parameters
+        ----------
+        gro : filename
+        top : filename
+        ff : list
+            Dict of createSystem parameters.
+
+        """
+        coords = load_file(gro)
+        top = load_file(top)
+        top.box = coords.box
+
+        args = copy.deepcopy(SYSTEM_DEFAULTS)
+        args.update(kwargs)
+
+        self._topology = top.topology
+        self._system = top.createSystem(**args)
+        self._positions = coords.coordinates
+
+
+class Water(SystemMixin, TestSystem):
     """Create a single tip3pfb water molecule."""
-    def setup(self):
+    def __init__(self):
+        super().__init__()
         self._topology = self.def_topology()
         self._positions = unit.Quantity(
             np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]]),
@@ -212,10 +159,7 @@ class Water(System):
                                                                   *self())
 
 
-class Villin(System):
+class Villin(SystemMixin, TestSystem):
     """Solvated villin."""
 
     pdbfile = '/home/simo/scr/mmlite/data/villin.pdb'
-
-    def setup(self):
-        self.from_pdb(self.pdbfile)
