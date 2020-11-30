@@ -25,6 +25,18 @@ default_representations = {
             'sele': 'ligand'
         }
     },
+    'hetero': {
+        'type': 'ball+stick',
+        'params': {
+            'sele': 'hetero'
+        }
+    },
+    'sugar': {
+        'type': 'ball+stick',
+        'params': {
+            'sele': 'sugar'
+        }
+    },
     'ion': {
         'type': 'ball+stick',
         'params': {
