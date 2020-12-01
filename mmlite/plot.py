@@ -55,7 +55,15 @@ default_representations = {
 
 def setup_view(view, **kwargs):
     """Setup view representations."""
+    # colors = ['green', 'red', 'blue']
+    colors = {
+        1: ['#ff727e'],
+        2: '#7eff72 #ff727e'.split(),
+        3: '#728aff #fff872 #ff727e'.split(),
+        4: '#7eff72 #728aff #ffb172 #ff727e'.split()
+    }
     reps = copy.deepcopy(default_representations)
+    topography = kwargs.pop('topography', None)
     for key, val in kwargs.items():
         if isinstance(val, str):  # set or override defaults
             reps[key] = {'type': val, 'params': {'sele': key}}
@@ -63,6 +71,17 @@ def setup_view(view, **kwargs):
             if key in reps:
                 reps.pop(key)
     view.representations = list(reps.values())
+    if topography:
+        n_regions = len(topography.regions) - 1
+        if n_regions > 4:
+            raise ValueError('Cant show > 4 regions')
+        if n_regions > 0:
+            cls = list(colors[n_regions])
+            for name, selection in topography.regions.items():
+                if name != 0:
+                    view.add_representation('ball+stick',
+                                            selection=selection,
+                                            color=cls.pop())
     view.camera = 'orthographic'
     view.center(zoom=True)
 
