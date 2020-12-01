@@ -108,5 +108,6 @@ ve
 notebooks/*
 !notebooks/1yi6.ipynb
 !notebooks/water.ipynb
+!notebooks/matrix.ipynb
 
 data/*
