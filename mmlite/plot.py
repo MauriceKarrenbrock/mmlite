@@ -47,6 +47,7 @@ default_representations = {
         'type': 'line',
         'params': {
             'sele': 'water',
+            'color': 'blue',
             'opacity': 0.1
         }
     },
