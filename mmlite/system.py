@@ -9,6 +9,7 @@ import logging
 import mdtraj
 import nglview
 import numpy as np
+import openmmtools.testsystems
 import simtk.openmm as mm
 from openmmtools.testsystems import TestSystem
 from parmed import load_file
@@ -167,3 +168,7 @@ class Villin(SystemMixin, TestSystem):
     def __init__(self):
         super().__init__()
         self.from_pdb(self.pdbfile)
+
+
+class HostGuest(SystemMixin, openmmtools.testsystems.HostGuestExplicit):
+    """CB7:B2 host-guest system in TIP3P explicit solvent."""
