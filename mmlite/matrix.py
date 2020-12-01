@@ -14,6 +14,12 @@ class AlchemicalMatrix(Topography, MutableMapping):  # pylint: disable=too-many-
                          solvent_atoms=solvent_atoms)
         self._regions[0] = list(range(self.topology.n_atoms))
 
+    def __repr__(self):
+        return '%s(topology=%r)' % (self.__class__.__name__, self.topology)
+
+    def __str__(self):
+        return str({key: '%s atoms' % len(val) for key, val in self.items()})
+
     def __getitem__(self, region):
         return copy.copy(self._regions[region])
 
@@ -35,3 +41,8 @@ class AlchemicalMatrix(Topography, MutableMapping):  # pylint: disable=too-many-
 
     def __delitem__(self, region):
         self.remove_region(region)
+
+    @property
+    def regions(self):
+        """Return a mapping from selection names to atom indices."""
+        return self._regions
