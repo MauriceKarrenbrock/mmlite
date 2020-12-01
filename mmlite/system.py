@@ -116,6 +116,14 @@ class SystemMixin:
         self._system = top.createSystem(**args)
         self._positions = coords.coordinates
 
+    def __call__(self):
+        return self._topology, self._system, self._positions
+
+    def __repr__(self):
+        name = self.__class__.__name__
+        return '%s(topology=%r,\n\tsystem=%r,\n\tposition=%r)' % (name,
+                                                                  *self())
+
 
 class Water(SystemMixin, TestSystem):
     """Create a single tip3pfb water molecule."""
@@ -150,14 +158,6 @@ class Water(SystemMixin, TestSystem):
         topology.addBond(atom0, atom1)
         topology.addBond(atom0, atom2)
         return topology
-
-    def __call__(self):
-        return self._topology, self._system, self._positions
-
-    def __repr__(self):
-        name = self.__class__.__name__
-        return '%s(topology=%r,\n\tsystem=%r,\n\tposition=%r)' % (name,
-                                                                  *self())
 
 
 class Villin(SystemMixin, TestSystem):
