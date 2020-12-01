@@ -8,10 +8,7 @@ import logging
 
 import mdtraj
 import nglview
-import numpy as np
-import openmmtools.testsystems
 import simtk.openmm as mm
-from openmmtools.testsystems import TestSystem
 from parmed import load_file
 from simtk import unit
 
@@ -123,52 +120,3 @@ class SystemMixin:
         name = self.__class__.__name__
         return '%s(topology=%r,\n\tsystem=%r,\n\tposition=%r)' % (name,
                                                                   *self())
-
-
-class Water(SystemMixin, TestSystem):
-    """Create a single tip3pfb water molecule."""
-    def __init__(self):
-        super().__init__()
-        self._topology = self.def_topology()
-        self._positions = unit.Quantity(
-            np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]]),
-            unit.angstroms)
-        # load the forcefield for tip3pfb
-        ff = mm.app.ForceField('amber14/tip3pfb.xml')
-        self._system = ff.createSystem(
-            self.topology,
-            nonbondedCutoff=mm.NonbondedForce.NoCutoff,
-            constraints=None,
-            rigidWater=False,
-            removeCMMotion=True)
-
-    @staticmethod
-    def def_topology():
-        """Water molecule topology."""
-        topology = mm.app.Topology()
-        # add `chain` to the topology
-        chain = topology.addChain()
-        # add a residue named "water" to the chain
-        residue = topology.addResidue('water', chain)
-        oxigen = mm.app.Element.getByAtomicNumber(8)
-        hydrogen = mm.app.Element.getByAtomicNumber(1)
-        atom0 = topology.addAtom('O', oxigen, residue)
-        atom1 = topology.addAtom('H', hydrogen, residue)
-        atom2 = topology.addAtom('H', hydrogen, residue)
-        topology.addBond(atom0, atom1)
-        topology.addBond(atom0, atom2)
-        return topology
-
-
-class Villin(SystemMixin, TestSystem):
-    """Solvated villin."""
-
-    pdbfile = '/home/simo/scr/mmlite/data/villin.pdb'
-
-    def __init__(self):
-        super().__init__()
-        self.from_pdb(self.pdbfile)
-
-
-class HostGuest(SystemMixin, openmmtools.testsystems.HostGuestExplicit):
-    """CB7:B2 host-guest system in TIP3P explicit solvent."""
