@@ -59,3 +59,20 @@ class Villin(SystemMixin, testsystems.TestSystem):
 
 class HostGuest(SystemMixin, testsystems.HostGuestExplicit):
     """CB7:B2 host-guest system in TIP3P explicit solvent."""
+
+
+class LennardJonesFluid(SystemMixin, testsystems.LennardJonesFluid):
+    """Periodic fluid of Lennard-Jones particles."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Create topology.
+        topology = mm.app.Topology()
+        element = mm.app.Element.getBySymbol('Ar')
+        chain = topology.addChain()
+        residue = topology.addResidue('Alc', chain)
+        topology.addAtom('S', element, residue)
+        for _ in range(1, self.system.getNumParticles()):
+            residue = topology.addResidue('Ar', chain)
+            topology.addAtom('Ar', element, residue)
+        self.topology = topology
