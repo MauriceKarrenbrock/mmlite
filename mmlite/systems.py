@@ -71,7 +71,7 @@ class LennardJonesFluid(SystemMixin, testsystems.LennardJonesFluid):
         element = mm.app.Element.getBySymbol('Ar')
         chain = topology.addChain()
         residue = topology.addResidue('Alc', chain)
-        topology.addAtom('S', element, residue)
+        topology.addAtom('Ar', element, residue)
         for _ in range(1, self.system.getNumParticles()):
             residue = topology.addResidue('Ar', chain)
             topology.addAtom('Ar', element, residue)
