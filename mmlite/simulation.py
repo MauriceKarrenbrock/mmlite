@@ -221,9 +221,33 @@ def camelcase(a):
     return a.title().replace('_', '')
 
 
-def _getter(name):
-    """getQuantityName from quantity_name."""
-    return 'get' + camelcase(name)
+def state_property(state, property_name):
+    """Return the value of a state property from quantity_name.
+
+    Parameters
+    ----------
+    state : State object
+    property_name : str or array-like
+        Property name (all-lowercase, underscore separated format)
+        If a list is passed, a list of values will be returned. If `name`
+        contains whitespaces, split it into a list of names.
+
+    Returns
+    -------
+    value/list of values.
+
+    """
+    if isinstance(property_name, str) and len(property_name.split()) == 1:
+        method_name = 'get' + camelcase(property_name)
+        method = getattr(state, method_name)
+        kwargs = {}
+        if property_name in 'forces periodic_box_vectors positions velocities':
+            kwargs['asNumpy'] = True
+        return method(**kwargs)
+
+    if isinstance(property_name, str):
+        property_name = property_name.split()
+    return [state_property(state, q) for q in property_name]
 
 
 def state_data(state, data=None):
@@ -234,10 +258,7 @@ def state_data(state, data=None):
 
     result = []
     for q in data:
-        if q in 'forces periodic_box_vectors positions velocities'.split():
-            result.append(getattr(state, _getter(q))(asNumpy=True))
-        else:
-            result.append(getattr(state, _getter(q))())
+        result.append(state_property(state, q))
     return result if len(data) > 1 else result[0]
 
 
