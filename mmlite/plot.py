@@ -87,7 +87,7 @@ def setup_view(view, **kwargs):
     view.center(zoom=True)
 
 
-def show_mdtraj(fp, stride=None, atom_indices=None, **kwargs):
+def show_mdtraj(fp, stride=None, atom_indices=None, top=None, **kwargs):
     """
     Return a trajectory view.
 
@@ -98,6 +98,7 @@ def show_mdtraj(fp, stride=None, atom_indices=None, **kwargs):
         Read every stride-th frame
     atom_indices : array, optional
         Read only a subset of the atoms coordinates from the file
+    top : openmm Topology
     kwargs : dict
         Molecular representation of selections, e.g. protein='cartoon'
 
@@ -106,7 +107,9 @@ def show_mdtraj(fp, stride=None, atom_indices=None, **kwargs):
     View object
 
     """
-    traj = mdtraj.load(fp, stride=stride, atom_indices=atom_indices)
+    if top:
+        top = mdtraj.Topology.from_openmm(top)
+    traj = mdtraj.load(fp, stride=stride, atom_indices=atom_indices, top=top)
     view = nglview.show_mdtraj(traj)
     setup_view(view, **kwargs)
     return view
