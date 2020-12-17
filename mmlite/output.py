@@ -3,6 +3,7 @@
 import sys
 from pathlib import Path
 
+from mdtraj.reporters import NetCDFReporter
 from simtk.openmm.app.pdbreporter import PDBReporter
 from simtk.openmm.app.statedatareporter import StateDataReporter
 
@@ -83,8 +84,13 @@ def add_reporters(
         else:  # file path
             if fp.suffix == '.pdb':
                 reporter = PDBReporter(str(fp), dt)
+            elif fp.suffix == '.nc':
+                reporter = NetCDFReporter(str(fp), dt)
             elif fp.suffix == '.csv':
                 reporter = StateDataReporter(str(fp), dt,
                                              **{q: True
                                                 for q in data})
             simulation.reporters.append(reporter)
+
+    # reporter = NetCDFReporter('traj.nc', freqs[0])
+    # simulation.reporters.append(reporter)
