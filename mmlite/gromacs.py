@@ -32,8 +32,11 @@ class InputFile(OrderedDict):
         self.n_blank_lines = 0  # init comments counter
         self._path = None
         if path:
-            self.path = path
-            self.read()  # if a path is given, read input and init dict
+            if isinstance(path, self.__class__):
+                self.__dict__.update(path.__dict__)
+            else:
+                self.path = path
+                self.read()  # if a path is given, read input and init dict
         super().__init__(**kwargs)  # update dict with kwargs
 
     def __setitem__(self, key, value):
