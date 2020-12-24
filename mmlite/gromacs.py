@@ -157,6 +157,13 @@ class Mdp(InputFile):
         return '%s = %s' % (key, value)
 
 
+class Top(InputFile):
+    """
+    Store .top file info as an OrderedDict.
+
+    """
+
+
 def save_topology(topology, system, target_dir='frames'):
     """Save gromacs .top file from openmm topology and system."""
     # get a parmed.structure.Structure object
