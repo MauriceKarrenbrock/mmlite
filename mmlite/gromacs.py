@@ -4,6 +4,8 @@ import re
 from collections import OrderedDict
 from pathlib import Path
 
+import parmed
+
 
 def _read_lines(path=None):
     """Yield non-empty lines."""
@@ -150,3 +152,29 @@ class Mdp(InputFile):
     def stringify(key, value):
         """Return a string for non-comment line."""
         return '%s = %s' % (key, value)
+
+
+def save_topology(topology, system, target_dir='frames'):
+    """Save gromacs .top file from openmm topology and system."""
+    # get a parmed.structure.Structure object
+    structure = parmed.openmm.load_topology(topology, system=system)
+    structure.save(str(Path(target_dir) / 'system.top'), overwrite=True)
+
+
+def save_tpr(mdp, topology, tpr='system.tpr', positions=None, system=None):
+    """
+    Save gromacs .tpr file.
+
+    Parameters
+    ----------
+    mdp : Mdp object or filepath
+    topology : openmm Topology object or mmlite TestSytem object or filepath
+        If a TestSystem object, positions and system are not needed.
+    positions : filepath or array-like object, optional
+        If passed, override positions from TestSystem object.
+    system : openmm System object, optional
+        If passed, override system from TestSystem object.
+    tpr : output .tpr filename, optional
+
+    """
+    raise NotImplementedError
