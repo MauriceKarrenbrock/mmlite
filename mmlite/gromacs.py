@@ -9,7 +9,7 @@ import parmed
 
 def _read_lines(path=None):
     """Yield non-empty lines."""
-    path = Path(path)
+    path = Path(path).resolve()
     with open(path) as fp:
         for line in fp:
             line = line.strip()
@@ -61,7 +61,7 @@ class InputFile(OrderedDict):
         return '\n'.join(lines)
 
     def _check_path(self, path=None):
-        fp = Path(path) if path else self.path
+        fp = Path(path).resolve() if path else self.path
         if not fp:
             raise ValueError('Path not defined')
         return fp
@@ -73,7 +73,7 @@ class InputFile(OrderedDict):
 
     @path.setter
     def path(self, fp=None):
-        self._path = Path(fp) if fp else None
+        self._path = Path(fp).resolve() if fp else None
 
     @property
     def lines(self):
@@ -118,7 +118,7 @@ class InputFile(OrderedDict):
 
     def write(self, path):
         """Write to file."""
-        path = Path(path)
+        path = Path(path).resolve()
         with open(path, 'w') as fp:
             print(self.__str__(), file=fp)
 
@@ -164,11 +164,11 @@ class Top(InputFile):
     """
 
 
-def save_topology(topology, system, target_dir='frames'):
+def save_top(topology, system, path='frames/system.top'):
     """Save gromacs .top file from openmm topology and system."""
     # get a parmed.structure.Structure object
     structure = parmed.openmm.load_topology(topology, system=system)
-    structure.save(str(Path(target_dir) / 'system.top'), overwrite=True)
+    structure.save(str(Path(path)), overwrite=True)
 
 
 def save_tpr(mdp, topology, tpr='system.tpr', positions=None, system=None):
