@@ -120,3 +120,20 @@ class SystemMixin:
         name = self.__class__.__name__
         return '%s(topology=%r,\n\tsystem=%r,\n\tposition=%r)' % (name,
                                                                   *self())
+
+    @property
+    def thermodynamic_state(self):
+        """openmmtools ThermodynamicState object."""
+        return self._thermodynamic_state
+
+    @property
+    def default_box_vectors(self):
+        """System default box vectors."""
+        return self.system.getDefaultPeriodicBoxVectors()
+
+    @property
+    def box_vectors(self):
+        """Box vectors."""
+        if self._box_vectors is None:
+            self._box_vectors = self.default_box_vectors
+        return self._box_vectors
