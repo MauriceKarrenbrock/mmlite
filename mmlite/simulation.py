@@ -4,6 +4,7 @@
 
 import logging
 
+import parmed
 import simtk.openmm as mm
 import simtk.openmm.app as mmapp
 from simtk import unit
@@ -250,8 +251,13 @@ def state_property(state, property_name):
     return [state_property(state, q) for q in property_name]
 
 
-def state_data(state, data=None):
-    """Return data from context state."""
+def state_data(state, data='positions'):
+    """
+    Return data from context state.
+
+    Default: 'positions'.
+
+    """
 
     if isinstance(data, str):
         data = data.split()
@@ -262,7 +268,7 @@ def state_data(state, data=None):
     return result if len(data) > 1 else result[0]
 
 
-def simulation_state(simulation, data=None, pbc=False, groups=-1):
+def simulation_state(simulation, data='positions', pbc=False, groups=-1):
     """
     Return a context state containing the quantities defined in `data`.
 
@@ -292,6 +298,43 @@ def simulation_state(simulation, data=None, pbc=False, groups=-1):
         context = simulation.context
     except AttributeError:
         context = simulation
+
+    if isinstance(data, str):
+        data = data.split()
+
+    if data:
+        data = {'get' + camelcase(a): True for a in data}
+    else:
+        data = {}
+
+    return context.getState(**data, enforcePeriodicBox=pbc, groups=groups)
+
+
+def context_state(context, data='positions', pbc=True, groups=-1):
+    """
+    Return a context state containing the quantities defined in `data`.
+
+    Parameters
+    ----------
+    context : Context or State object.
+    data : list or str, optional
+        List of quantities to include in the context state.
+        If a string, split into a list. Default: 'positions'.
+        Valid values are: {'positions', 'velocities', 'forces', 'energy',
+        'parameters', 'parameter_derivatives'}
+    pbc : bool=False
+        Center molecules in the same cell.
+    groups : set=set(range(32))
+        Set of force groups indices to include when computing forces and
+        energies. Default: include all energies.
+
+    Returns
+    -------
+    state object
+
+    """
+    if isinstance(context, State):  # if a State object, just return
+        return context
 
     if isinstance(data, str):
         data = data.split()
@@ -430,3 +473,33 @@ def set_simulation_positions(simulation, xp):
     except AttributeError:
         context = simulation
     context.setPositions(xp)
+
+
+def simulation_structure(simulation, velocities=False):
+    """
+    Extract a parmed Structure object from `simulation`.
+
+    Parameters
+    ----------
+    simulation : openmm.app.Simulation
+        OpenMM Simulation object.
+    velocities : bool, optional
+        Store velocities, defaults to False.
+
+    Returns
+    -------
+    parmed.Structure object.
+
+    """
+
+    data = ['positions']
+    if velocities:
+        data.append('velocities')
+
+    state = simulation_state(simulation, data=data, pbc=True)
+    positions, velocities = state_data(state, data=data)
+    structure = parmed.openmm.load_topology(simulation.topology,
+                                            simulation.system)
+    structure.positions = positions
+    structure.velocities = velocities
+    return structure
