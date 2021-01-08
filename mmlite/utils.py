@@ -4,6 +4,7 @@
 import logging
 from pathlib import Path
 
+import mdtraj
 import simtk.openmm as mm
 from pdbfixer import PDBFixer
 from simtk import unit
@@ -14,6 +15,38 @@ from simtk.unit.quantity import Quantity
 from .simulation import simulation_energy
 
 logger = logging.getLogger(__name__)
+
+extension_map = {
+    '.xtc': 'xtc',
+    '.trr': 'trr',
+    '.pdb': 'pdb',
+    '.pdb.gz': 'pdb',
+    '.dcd': 'dcd',
+    '.h5': 'hdf5',
+    '.binpos': 'binpos',
+    '.nc': 'netcdf',
+    '.netcdf': 'netcdf',
+    '.ncrst': 'netcdfrst',
+    '.crd': 'mdcrd',
+    '.mdcrd': 'mdcrd',
+    '.ncdf': 'netcdf',
+    '.lh5': 'lh5',
+    '.lammpstrj': 'lammpstrj',
+    '.xyz': 'xyz',
+    '.xyz.gz': 'xyz',
+    '.gro': 'gro',
+    '.rst7': 'amberrst7',
+    '.tng': 'tng',
+    '.dtr': 'dtr',
+    '.gsd': 'gsd',
+}
+
+
+def mkdir(target):
+    """Create and return the path to target directory."""
+    target = Path(target)
+    target.mkdir(parents=True, exist_ok=True)
+    return target
 
 
 def create_langevin_context(system,
@@ -212,3 +245,54 @@ def prepare_pdb(pdb,
     # Serialize final coordinates.
     logger.info('Serializing to XML...')
     serialize_system(context, system, integrator)
+
+
+def split_trajectory(  # pylint: disable=too-many-arguments
+        trj,
+        start=0,
+        stop=None,
+        step=1,
+        out=Path.cwd(),
+        ext='.pdb',
+        topology=None):
+    """
+    Split a trajectory into frames files.
+
+    Check `extension_map` dict for valid input/output formats.
+
+    Parameters
+    ----------
+    trj : filepath or mdtraj.Trajectory object
+    start : int
+        Start index for slicing.
+    stop : int
+        Stop index for slicing.
+    step : int
+        Step index for slicing.
+    out : dir path
+    ext : str
+        Extension of output frames. Defaults
+    topology : openmm or mdtraj Topology object
+
+    """
+    # check extension
+    if ext[0] != '.':
+        ext = '.' + ext
+    if ext not in extension_map:
+        raise ValueError('Valid extensions are: %s' %
+                         list(extension_map.keys()))
+
+    if not isinstance(trj, mdtraj.Trajectory):  # parse trajectory
+        if not topology:
+            raise ValueError('Need a topology.')
+        if isinstance(topology, mm.app.topology.Topology):
+            # convert to mdtraj topology
+            topology = mdtraj.Topology.from_openmm(topology)
+        trj = mdtraj.load(str(Path(trj)), top=topology)
+
+    out_dir = mkdir(out)
+    # check slice
+    s = slice(start, stop, step)
+    for i, frame in enumerate(trj[s]):
+        filename = str(out_dir / (str(i) + ext))
+        frame.save(filename)
