@@ -7,7 +7,7 @@ import simtk.openmm as mm
 from openmmtools import testsystems
 from simtk import unit
 
-from .system import SystemMixin
+from mmlite.system import SystemMixin
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +58,10 @@ class Villin(SystemMixin, testsystems.TestSystem):
 
 
 class HostGuest(SystemMixin, testsystems.HostGuestExplicit):
+    """CB7:B2 host-guest system in TIP3P explicit solvent."""
+
+
+class AlanineDipeptideVacuum(SystemMixin, testsystems.AlanineDipeptideVacuum):
     """CB7:B2 host-guest system in TIP3P explicit solvent."""
 
 
