@@ -64,6 +64,9 @@ setup(
     url=project_info.get('__url__'),
     py_modules=modules,
     packages=packages,
+    entry_points={
+        'console_scripts': ['mmlite-tconvert=mmlite.scripts.tconvert:main']
+    },
     setup_requires=SETUP_REQUIRES,
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRES,
