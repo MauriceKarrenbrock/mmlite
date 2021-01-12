@@ -248,7 +248,7 @@ def prepare_pdb(pdb,
 
 
 def convert_trajectory(  # pylint: disable=too-many-arguments
-        trj,
+        trj_in,
         trj_out,
         start=0,
         stop=None,
@@ -262,7 +262,7 @@ def convert_trajectory(  # pylint: disable=too-many-arguments
 
     Parameters
     ----------
-    trj : filepath or mdtraj.Trajectory object
+    trj_in : filepath or mdtraj.Trajectory object
     trj_out : filepath
     start : int
         Start index for slicing.
@@ -278,30 +278,30 @@ def convert_trajectory(  # pylint: disable=too-many-arguments
     """
 
     # if filepath, load trajectory
-    if not isinstance(trj, mdtraj.Trajectory):
-        trj = str(Path(trj))
+    if not isinstance(trj_in, mdtraj.Trajectory):
+        trj_in = str(Path(trj_in))
         # parse trajectory
         if not topology:
             raise ValueError('Need a topology.')
         if isinstance(topology, mm.app.topology.Topology):
             # convert to mdtraj topology
             topology = mdtraj.Topology.from_openmm(topology)
-        trj = mdtraj.load(trj, top=topology)
+        trj_in = mdtraj.load(trj_in, top=topology)
 
     s = slice(start, stop, step)  # check slice
-    trj = trj[s]
+    trj_in = trj_in[s]
 
     trj_out = Path(trj_out)
+    out_dir = mkdir(trj_out.parent)
+    print(trj_in.n_frames)
     if not split:
-        trj.save(str(trj_out))
+        trj_in.save(str(trj_out))
     else:
-        out_dir = trj_out.parent
-        out_dir = mkdir(out_dir)
-        filename = trj_out.name
-    for i, frame in enumerate(trj):
-        filename = '%s.%s' % (str(i), filename)
-        filename = str(out_dir / filename)
-        frame.save(filename)
+        name = trj_out.name
+        for i, frame in enumerate(trj_in):
+            filename = '%s.%s' % (str(i), name)
+            fp = str(out_dir / filename)
+            frame.save(fp)
 
 
 def split_trajectory(  # pylint: disable=too-many-arguments
