@@ -57,8 +57,15 @@ class Villin(SystemMixin, testsystems.TestSystem):
         self.from_pdb(self.pdbfile)
 
 
-class HostGuest(SystemMixin, testsystems.HostGuestExplicit):
+class HostGuestExplicit(SystemMixin, testsystems.HostGuestExplicit):
     """CB7:B2 host-guest system in TIP3P explicit solvent."""
+
+
+class LysozymeImplicit(SystemMixin, testsystems.LysozymeImplicit):
+    """
+    T4 lysozyme L99A (AMBER ff96) with p-xylene ligand (GAFF + AM1-BCC) in
+    implicit OBC GBSA solvent.
+    """
 
 
 class AlanineDipeptideVacuum(SystemMixin, testsystems.AlanineDipeptideVacuum):
