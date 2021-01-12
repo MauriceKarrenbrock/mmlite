@@ -247,6 +247,64 @@ def prepare_pdb(pdb,
     serialize_system(context, system, integrator)
 
 
+def convert_trajectory(  # pylint: disable=too-many-arguments
+        trj,
+        trj_out,
+        start=0,
+        stop=None,
+        step=1,
+        split=False,
+        topology=None):
+    """
+    Convert a trajectory between different formats.
+
+    Needs a topology, that can be extracted from a pdb file.
+
+    Parameters
+    ----------
+    trj : filepath or mdtraj.Trajectory object
+    trj_out : filepath
+    start : int
+        Start index for slicing.
+    stop : int
+        Stop index for slicing.
+    step : int
+        Step index for slicing.
+    split : bool
+        Split output trajectory into frames.
+        `trj_out` is a directory or None
+    topology : path to .pdb file, mdtraj Trajectory or Topology object
+
+    """
+
+    # if filepath, load trajectory
+    if not isinstance(trj, mdtraj.Trajectory):
+        trj = str(Path(trj))
+        # parse trajectory
+        if not topology:
+            raise ValueError('Need a topology.')
+        if isinstance(topology, mm.app.topology.Topology):
+            # convert to mdtraj topology
+            topology = mdtraj.Topology.from_openmm(topology)
+        trj = mdtraj.load(trj, top=topology)
+
+    s = slice(start, stop, step)  # check slice
+    trj = trj[s]
+
+    trj_out = Path(trj_out)
+    if not split:
+        trj.save(str(trj_out))
+    else:
+        out_dir = trj_out.parent
+        out_dir = mkdir(out_dir)
+        ext = trj_out.suffix
+        stem = trj_out.stem
+    for i, frame in enumerate(trj):
+        filename = '.'.join([stem, str(i), ext])
+        filename = str(out_dir / filename)
+        frame.save(filename)
+
+
 def split_trajectory(  # pylint: disable=too-many-arguments
         trj,
         start=0,
@@ -278,9 +336,9 @@ def split_trajectory(  # pylint: disable=too-many-arguments
     # check extension
     if ext[0] != '.':
         ext = '.' + ext
-    if ext not in extension_map:
-        raise ValueError('Valid extensions are: %s' %
-                         list(extension_map.keys()))
+    # if ext not in extension_map:
+    #     raise ValueError('Valid extensions are: %s' %
+    #                      list(extension_map.keys()))
 
     if not isinstance(trj, mdtraj.Trajectory):  # parse trajectory
         if not topology:
