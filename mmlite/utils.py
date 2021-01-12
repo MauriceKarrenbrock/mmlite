@@ -297,10 +297,9 @@ def convert_trajectory(  # pylint: disable=too-many-arguments
     else:
         out_dir = trj_out.parent
         out_dir = mkdir(out_dir)
-        ext = trj_out.suffix
-        stem = trj_out.stem
+        filename = trj_out.name
     for i, frame in enumerate(trj):
-        filename = '.'.join([stem, str(i), ext])
+        filename = '%s.%s' % (str(i), filename)
         filename = str(out_dir / filename)
         frame.save(filename)
 
