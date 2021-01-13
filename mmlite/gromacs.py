@@ -6,6 +6,8 @@ from pathlib import Path
 
 import parmed
 
+from mmlite.utils import split_trajectory
+
 
 def _read_lines(path=None):
     """Yield non-empty lines."""
@@ -188,3 +190,36 @@ def save_tpr(mdp, topology, tpr='system.tpr', positions=None, system=None):
 
     """
     raise NotImplementedError
+
+
+def generate_gromacs_input(trj, sampler, start_frame=0, split=None):
+    """
+    Create the files needed for alchemical tranformations via gromacs.
+
+    The following files will be created in the same dir of the `trj` file:
+    * a system.top file
+    * (TODO) a .mdp file
+    * (optionally) a file for each frame in the `trj` file
+
+    Parameters
+    ----------
+    trj : filepath
+        Path to NetCDF file.
+    sampler: multistate sampler.
+    start_frame : int
+        Index of the first frame to extract (default: 0).
+    split : str or None
+        If not None, split the trajectory into frames, using the argument to
+        identify the format e.g. `split='.gro'`
+
+    """
+
+    trj = Path(trj)
+    trj_dir = trj.parent.resolve()
+    if split:
+        split_trajectory(trj,
+                         start=start_frame,
+                         out=trj_dir,
+                         topology=sampler.topology,
+                         ext=split)
+    save_top(sampler.topology, sampler.ref_system, path=trj_dir / 'system.top')

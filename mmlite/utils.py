@@ -12,7 +12,7 @@ from simtk.openmm import app
 from simtk.openmm.app.pdbfile import PDBFile
 from simtk.unit.quantity import Quantity
 
-from .simulation import simulation_energy
+from mmlite.simulation import simulation_energy
 
 logger = logging.getLogger(__name__)
 
