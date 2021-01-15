@@ -192,7 +192,7 @@ def save_tpr(mdp, topology, tpr='system.tpr', positions=None, system=None):
     raise NotImplementedError
 
 
-def generate_gromacs_input(trj, sampler, start_frame=0, split=None):
+def generate_gromacs_input(trj, *, topology=None, system=None, split=None):
     """
     Create the files needed for alchemical tranformations via gromacs.
 
@@ -204,10 +204,11 @@ def generate_gromacs_input(trj, sampler, start_frame=0, split=None):
     Parameters
     ----------
     trj : filepath
-        Path to NetCDF file.
-    sampler: multistate sampler.
-    start_frame : int
-        Index of the first frame to extract (default: 0).
+        Path to multistate NetCDF file.
+    topology : Topology object or filepath
+        openmm/mdtraj Topology or filepath to .pdb file.
+    system : System object or filepath
+        openmm System or filepath to .pdb file.
     split : str or None
         If not None, split the trajectory into frames, using the argument to
         identify the format e.g. `split='.gro'`
@@ -215,11 +216,13 @@ def generate_gromacs_input(trj, sampler, start_frame=0, split=None):
     """
 
     trj = Path(trj)
+
+    # if file has ref_system and topography in metadata
+    # get system and topology
+    # https://github.com/choderalab/yank/blob/bb2b8657896b73950a9f86cbb2c3d5832e0fa692/Yank/analyze.py#L1085
+
     trj_dir = trj.parent.resolve()
+
     if split:
-        split_trajectory(trj,
-                         start=start_frame,
-                         out=trj_dir,
-                         topology=sampler.topology,
-                         ext=split)
-    save_top(sampler.topology, sampler.ref_system, path=trj_dir / 'system.top')
+        split_trajectory(trj, out=trj_dir, topology=topology, ext=split)
+    save_top(topology, system, path=trj_dir / 'system.top')
