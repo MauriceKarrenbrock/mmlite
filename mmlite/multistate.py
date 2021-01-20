@@ -7,7 +7,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import mmdemux
-import mpiplus
 import openmmtools as mmtools
 import simtk.openmm as mm
 import yank
@@ -46,30 +45,6 @@ class SamplerMixin:
     ```
 
     """
-    def from_storage(self, storage):
-        """From an existing storage file."""
-        # TODO: crash!
-        # Handle case in which storage is a string.
-        reporter = self._reporter_from_storage(storage, check_exist=True)
-
-        try:
-            # Open the reporter to read the data.
-            reporter.open(mode='r')
-            sampler = self._instantiate_sampler_from_reporter(reporter)
-            sampler._restore_sampler_from_reporter(reporter)
-        finally:
-            # Close reporter in reading mode.
-            reporter.close()
-
-        # We open the reporter only in node 0 in append mode ready for use
-        sampler._reporter = reporter
-        mpiplus.run_single_node(0,
-                                sampler._reporter.open,
-                                mode='a',
-                                broadcast_result=False,
-                                sync_nodes=False)
-        return sampler
-
     def from_testsystem(  # pylint: disable=too-many-arguments
             self,
             test,
