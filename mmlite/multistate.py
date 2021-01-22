@@ -1,16 +1,15 @@
 # -*- coding: utf-8 -*-
 """(multistate) sampling utils."""
-# pylint: disable=no-member, protected-access
+# pylint: disable=no-member, protected-access, import-error
 import logging
 import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
-import mdtraj
 import mmdemux
 import openmmtools as mmtools
 import simtk.openmm as mm
-import yank
+from mmlite import Topography
 from openmmtools import mcmc, multistate
 from openmmtools.states import SamplerState, ThermodynamicState
 from simtk import unit
@@ -171,12 +170,10 @@ class SamplerMixin:
             metadata = {}
 
         # set self.topography
-        if isinstance(top, yank.Topography):
+        if isinstance(top, Topography):
             self.topography = top
         else:
-            if isinstance(top, mm.app.topology.Topology):  # convert to mdtraj
-                top = mdtraj.Topology.from_openmm(top)
-            self.topography = yank.Topography(top)
+            self.topography = Topography(top)
 
         self.ref_state = target_state
 
