@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 
 import mdtraj
+import openmmtools as mmtools
 import simtk.openmm as mm
 from pdbfixer import PDBFixer
 from simtk import unit
@@ -353,3 +354,46 @@ def split_trajectory(  # pylint: disable=too-many-arguments
     for i, frame in enumerate(trj[s]):
         filename = str(out_dir / (str(i) + ext))
         frame.save(filename)
+
+
+def multistate_reporter_metadata(path,
+                                 data=('reference_state.system',
+                                       'topography.topology')):
+    """
+    Extract metadata from reporter.
+
+    Attributes
+    ----------
+    path : str or Path object
+        Path to multistate reporter container.
+    data : list, optional
+        List of strings defining the objects to extract from metadata, e.g.
+        'reference_state' for metadata['reference_state'].
+        The dot notation 'key.a.b' notation corresponds to
+        metadata[key].a.b
+
+    Returns
+    -------
+    List of
+
+    """
+    def extract_field(field, metadata):
+        """Extract `field` from container metadata."""
+        key, *attrs = field.split('.')
+        obj = mmtools.utils.deserialize(metadata[key])
+        for a in attrs:
+            obj = getattr(obj, a)
+        return obj
+
+    reporter = mmtools.multistate.MultiStateReporter(str(path),
+                                                     open_mode='r',
+                                                     checkpoint_storage=None)
+    mdata = reporter.read_dict('metadata')
+
+    if isinstance(data, str):
+        result = extract_field(data, mdata)
+    else:
+        result = [extract_field(f, mdata) for f in data]
+
+    reporter.close()
+    return result
