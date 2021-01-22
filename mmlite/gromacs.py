@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """Gromcas tools."""
+# pylint: disable=import-error
 import re
 from collections import OrderedDict
 from pathlib import Path
 
+import mdtraj
 import parmed
-
 from mmlite.utils import split_trajectory
 
 
@@ -169,6 +170,8 @@ class Top(InputFile):
 def save_top(topology, system, path='frames/system.top'):
     """Save gromacs .top file from openmm topology and system."""
     # get a parmed.structure.Structure object
+    if isinstance(topology, mdtraj.Topology):
+        topology = topology.to_openmm()
     structure = parmed.openmm.load_topology(topology, system=system)
     structure.save(str(Path(path)), overwrite=True)
 
