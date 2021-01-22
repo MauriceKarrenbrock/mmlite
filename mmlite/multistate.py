@@ -6,6 +6,7 @@ import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
+import mdtraj
 import mmdemux
 import openmmtools as mmtools
 import simtk.openmm as mm
@@ -51,7 +52,7 @@ class SamplerMixin:
             temperatures,
             pressure=None,
             storage=None,
-            ref_state=0,
+            target_state=0,
             metadata=None,
             **kwargs):
         """Initialize sampler from TestSystem object."""
@@ -70,10 +71,10 @@ class SamplerMixin:
                                       box_vectors=test.default_box_vectors)
         self.create(thermodynamic_states,
                     sampler_states,
+                    test.topology,
+                    target_state=target_state,
                     storage=storage,
                     metadata=metadata,
-                    ref_state=ref_state,
-                    top=test.topology,
                     **kwargs)
 
     def from_pdb(self):
@@ -89,13 +90,13 @@ class SamplerMixin:
 
     def create(  # pylint: disable=too-many-arguments
             self,
-            thermodynamic_states: list,
+            thermodynamic_states,
             sampler_states,
             top,
-            storage,
-            ref_state=0,
+            target_state=0,
             initial_thermodynamic_states=None,
             unsampled_thermodynamic_states=None,
+            storage=None,
             metadata=None,
             stride=1):
         """Create new multistate sampler simulation.
@@ -114,13 +115,8 @@ class SamplerMixin:
             provided. If the sampler states do not have box_vectors attached
             and the system is periodic, an exception will be thrown.
         top : Topology or Topography object, optional
-        ref_state : int, optional
+        target_state : int, optional
            The indef of the reference thermodynamic state. Defaults to 0.
-        storage : str or instanced Reporter
-            If str: the path to the storage file.
-            Default checkpoint options from Reporter class are used.
-            If Reporter: Uses the reporter options and storage path
-            In the future this will be able to take a Storage class as well.
         initial_thermodynamic_states : None or list or
             array-like of int of length len(sampler_states), optional,
             Default: None.
@@ -150,13 +146,18 @@ class SamplerMixin:
             reduced potential is computed at each iteration for each replica.
             These energy can be used as data for reweighting schemes (default
             is None).
+        storage : str or instanced Reporter
+            If str: the path to the storage file.
+            Default checkpoint options from Reporter class are used.
+            If Reporter: Uses the reporter options and storage path
+            In the future this will be able to take a Storage class as well.
         metadata : dict, optional, default=None
            Simulation metadata to be stored in the file.
 
         """
 
         if isinstance(thermodynamic_states, ThermodynamicState):
-            # in case of a single state
+            # a single state
             thermodynamic_states = [thermodynamic_states]
         if not isinstance(sampler_states, (SamplerState, Sequence)):
             # as positions
@@ -169,24 +170,21 @@ class SamplerMixin:
         if metadata is None:
             metadata = {}
 
-        # set self.topology and metadata['topography']
-        if top is not None:
-            if isinstance(top, mm.app.topology.Topology):
-                self.topology = top
-                topography = yank.Topography(top)
-            elif isinstance(top, yank.Topography):
-                self.topology = top.topology
-                topography = top
-        self.ref_state = ref_state
+        # set self.topography
+        if isinstance(top, yank.Topography):
+            self.topography = top
+        else:
+            if isinstance(top, mm.app.topology.Topology):  # convert to mdtraj
+                top = mdtraj.Topology.from_openmm(top)
+            self.topography = yank.Topography(top)
+
+        self.ref_state = target_state
 
         sampler_full_name = mmtools.utils.typename(self.__class__)
         metadata['sampler_full_name'] = sampler_full_name
-        if topography:
-            metadata['topography'] = mmtools.utils.serialize(topography)
-        if ref_state is not None:
-            metadata['reference_state'] = thermodynamic_states[ref_state]
-            metadata['reference_state'] = mmtools.utils.serialize(
-                thermodynamic_states[ref_state])
+        metadata['topography'] = mmtools.utils.serialize(self.topography)
+        metadata['reference_state'] = mmtools.utils.serialize(
+            thermodynamic_states[target_state])
 
         super().create(
             thermodynamic_states=thermodynamic_states,
@@ -197,9 +195,14 @@ class SamplerMixin:
             metadata=metadata)
 
     @property
-    def ref_system(self):
+    def reference_state(self):
         """System object for the reference state."""
-        return self.thermodynamic_states[self.ref_state].system
+        return self.thermodynamic_states[self.ref_state]
+
+    @property
+    def reference_system(self):
+        """System object for the reference state."""
+        return self.reference_state.system
 
     @property
     def thermodynamic_states(self):
@@ -277,7 +280,7 @@ class SAMSSampler(SamplerMixin, multistate.SAMSSampler):  # pylint: disable=abst
                          **kwargs)
         self.reporter = None
         self.ref_state = None
-        self.topology = None
+        self.topography = None
 
 
 class ReplicaExchangeSampler(SamplerMixin, multistate.ReplicaExchangeSampler):  # pylint: disable=abstract-method
