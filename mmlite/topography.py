@@ -13,7 +13,7 @@ class Topography(yank.Topography):  # pylint: disable=too-few-public-methods
             topology = mdtraj.Topology.from_openmm(topology)
             # for openmm topologies, fix serial numbers
             for a in topology.atoms:
-                a.serial = a.index if a.serial is None else a.serial
+                a.serial = a.index + 1 if (a.serial is None) else a.serial
             super().__init__(topology=topology,
                              ligand_atoms=ligand_atoms,
                              solvent_atoms=solvent_atoms)
