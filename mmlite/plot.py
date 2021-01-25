@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import mdtraj
 import nglview
 import pandas
+import simtk.openmm as mm
 from simtk import unit
 
 # see:
@@ -98,7 +99,7 @@ def show_mdtraj(fp, stride=None, atom_indices=None, top=None, **kwargs):
         Read every stride-th frame
     atom_indices : array, optional
         Read only a subset of the atoms coordinates from the file
-    top : openmm Topology
+    top : {str, Trajectory, Topology}
     kwargs : dict
         Molecular representation of selections, e.g. protein='cartoon'
 
@@ -107,11 +108,17 @@ def show_mdtraj(fp, stride=None, atom_indices=None, top=None, **kwargs):
     View object
 
     """
-    if top:
+    load_args = dict(stride=stride, atom_indices=atom_indices)
+    if isinstance(top, mm.app.Topology):
         top = mdtraj.Topology.from_openmm(top)
-    traj = mdtraj.load(fp, stride=stride, atom_indices=atom_indices, top=top)
+    if top:
+        load_args['top'] = top
+
+    traj = mdtraj.load(fp, **load_args)
     view = nglview.show_mdtraj(traj)
-    setup_view(view, **kwargs)
+    should_setup_view = False
+    if should_setup_view:
+        setup_view(view, **kwargs)  # TODO: fix
     return view
 
 
