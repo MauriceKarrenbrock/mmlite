@@ -72,6 +72,16 @@ class AlanineDipeptideVacuum(SystemMixin, testsystems.AlanineDipeptideVacuum):
     """CB7:B2 host-guest system in TIP3P explicit solvent."""
 
 
+class AlanineDipeptideImplicit(SystemMixin,
+                               testsystems.AlanineDipeptideImplicit):
+    """Alanine dipeptide ff96 in OBC GBSA implicit solvent."""
+
+
+class AlanineDipeptideExplicit(SystemMixin,
+                               testsystems.AlanineDipeptideExplicit):
+    """Alanine dipeptide ff96 in OBC GBSA implicit solvent."""
+
+
 class LennardJonesFluid(SystemMixin, testsystems.LennardJonesFluid):
     """Periodic fluid of Lennard-Jones particles."""
     def __init__(self, *args, **kwargs):
