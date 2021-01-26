@@ -8,6 +8,7 @@ import mdtraj
 import nglview
 import pandas
 import simtk.openmm as mm
+import yank
 from simtk import unit
 
 # see:
@@ -55,8 +56,20 @@ default_representations = {
 }
 
 
-def setup_view(view, **kwargs):
-    """Setup view representations."""
+def setup_view(view, top=None, **kwargs):
+    """
+    Setup view representations.
+
+    Parameters
+    ----------
+    view : NGLWidget object
+    trj : mdtraj Trajectory
+
+    Returns
+    -------
+    NGLWidget object
+
+    """
     # colors = ['green', 'red', 'blue']
     colors = {
         1: ['#ff727e'],
@@ -65,7 +78,9 @@ def setup_view(view, **kwargs):
         4: '#7eff72 #728aff #ffb172 #ff727e'.split()
     }
     reps = copy.deepcopy(default_representations)
-    topography = kwargs.pop('topography', None)
+
+    top = kwargs.pop('top', None)
+
     for key, val in kwargs.items():
         if isinstance(val, str):  # set or override defaults
             reps[key] = {'type': val, 'params': {'sele': key}}
@@ -73,17 +88,32 @@ def setup_view(view, **kwargs):
             if key in reps:
                 reps.pop(key)
     view.representations = list(reps.values())
-    if topography:
-        n_regions = len(topography.regions) - 1
-        if n_regions > 4:
-            raise ValueError('Cant show > 4 regions')
-        if n_regions > 0:
-            cls = list(colors[n_regions])
-            for name, selection in topography.regions.items():
-                if name != 'default':
-                    view.add_representation('ball+stick',
-                                            selection=selection,
-                                            color=cls.pop())
+
+    if top:
+        if isinstance(top, yank.Topography):
+            topography = top
+            topology = top.topography
+            n_regions = len(topography.regions) - 1
+            if n_regions > 4:
+                raise ValueError('Cant show > 4 regions')
+            if n_regions > 0:
+                cls = list(colors[n_regions])
+                for name, selection in topography.regions.items():
+                    if name != 'default':
+                        view.add_representation('ball+stick',
+                                                selection=selection,
+                                                color=cls.pop())
+        else:
+            topology = top
+        n_protein_atoms = len(topology.select('protein'))
+        if n_protein_atoms < 200:
+            reps['protein'] = {
+                'type': 'ball+stick',
+                'params': {
+                    'sele': 'protein'
+                }
+            }
+
     view.camera = 'orthographic'
     view.center(zoom=True)
 
@@ -118,7 +148,7 @@ def show_mdtraj(fp, stride=None, atom_indices=None, top=None, **kwargs):
     view = nglview.show_mdtraj(traj)
     should_setup_view = False
     if should_setup_view:
-        setup_view(view, **kwargs)  # TODO: fix
+        setup_view(view, top=traj.topology, **kwargs)  # TODO: fix
     return view
 
 
