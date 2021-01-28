@@ -46,7 +46,7 @@ class RegionsMixin:
     def regions(self):
         """Return a mapping from selection names to atom indices."""
         if not self._regions:  # define base region
-            self._regions['default'] = list(range(self.topology.n_atoms))
+            self['default'] = list(range(self.topology.n_atoms))
         return self._regions
 
     @regions.setter
@@ -150,7 +150,16 @@ class Topography(RegionsMixin, yank.Topography, MutableMapping):  # pylint: disa
                          solvent_atoms=solvent_atoms)
         # initialize regions
         if not self._regions:
-            self._regions['default'] = list(range(self.topology.n_atoms))
+            self['default'] = list(range(self.topology.n_atoms))
+
+        # if ligand_atoms, define regions using Topography properties.
+        if self.ligand_atoms:
+            self['solvent'] = self.solvent_atoms
+            self['solute'] = self.solute_atoms
+            self['ligand'] = self.ligand_atoms
+            self['receptor'] = self.receptor_atoms
+            if len(self['solute']) == 0:
+                self.pop('solute')
 
         # if regions is passed, overwrite existing regions
         if regions:
