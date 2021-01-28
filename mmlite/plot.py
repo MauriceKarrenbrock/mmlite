@@ -79,8 +79,6 @@ def setup_view(view, top=None, **kwargs):
     }
     reps = copy.deepcopy(default_representations)
 
-    top = kwargs.pop('top', None)
-
     for key, val in kwargs.items():
         if isinstance(val, str):  # set or override defaults
             reps[key] = {'type': val, 'params': {'sele': key}}
@@ -92,7 +90,7 @@ def setup_view(view, top=None, **kwargs):
     if top:
         if isinstance(top, yank.Topography):
             topography = top
-            topology = top.topography
+            topology = top.topology
             n_regions = len(topography.regions) - 1
             if n_regions > 4:
                 raise ValueError('Cant show > 4 regions')
