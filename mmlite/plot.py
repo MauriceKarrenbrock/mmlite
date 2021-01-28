@@ -144,7 +144,9 @@ def show_mdtraj(fp, stride=None, atom_indices=None, top=None, **kwargs):
 
     traj = mdtraj.load(fp, **load_args)
     view = nglview.show_mdtraj(traj)
-    setup_view(view, top=top, **kwargs)  # TODO: fix
+    should_setup_view = False
+    if should_setup_view:
+        setup_view(view, top=traj.topology, **kwargs)  # TODO: fix
     return view
 
 
