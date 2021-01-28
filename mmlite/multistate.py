@@ -1,18 +1,21 @@
 # -*- coding: utf-8 -*-
 """(multistate) sampling utils."""
 # pylint: disable=no-member, protected-access, import-error
+import copy
 import logging
 import tempfile
+import time
 from collections.abc import Sequence
 from pathlib import Path
 
 import mmdemux
 import openmmtools as mmtools
 import simtk.openmm as mm
-from mmlite import Topography
 from openmmtools import mcmc, multistate
 from openmmtools.states import SamplerState, ThermodynamicState
 from simtk import unit
+
+from mmlite import Topography
 
 logger = logging.getLogger(__name__)
 
@@ -158,16 +161,21 @@ class SamplerMixin:
         if isinstance(thermodynamic_states, ThermodynamicState):
             # a single state
             thermodynamic_states = [thermodynamic_states]
-        if not isinstance(sampler_states, (SamplerState, Sequence)):
+        if not isinstance(sampler_states,
+                          (SamplerState, Sequence)):  # TODO: check this
             # as positions
             sampler_states = SamplerState(sampler_states)
+
+        # Do not modify passed ref thermodynamic state.
+        self._reference_thermodynamic_state = copy.deepcopy(
+            thermodynamic_states[target_state])
+        thermodynamic_state = copy.deepcopy(
+            self._reference_thermodynamic_state)
+        self._reference_system = thermodynamic_state.system
 
         if storage is None:
             storage = tempfile.NamedTemporaryFile(delete=False).name + '.nc'
         self.reporter = self._define_reporter(storage, stride)
-
-        if metadata is None:
-            metadata = {}
 
         # set self.topography
         if isinstance(top, Topography):
@@ -177,7 +185,11 @@ class SamplerMixin:
 
         self.ref_state = target_state
 
+        if metadata is None:
+            metadata = {}
         sampler_full_name = mmtools.utils.typename(self.__class__)
+        metadata['title'] = 'Created using %s on %s' % (
+            sampler_full_name, time.asctime(time.localtime()))
         metadata['sampler_full_name'] = sampler_full_name
         metadata['topography'] = mmtools.utils.serialize(self.topography)
         metadata['reference_state'] = mmtools.utils.serialize(
@@ -194,12 +206,12 @@ class SamplerMixin:
     @property
     def reference_state(self):
         """System object for the reference state."""
-        return self.thermodynamic_states[self.ref_state]
+        return self._reference_thermodynamic_state
 
     @property
     def reference_system(self):
         """System object for the reference state."""
-        return self.reference_state.system
+        return self._reference_system
 
     @property
     def thermodynamic_states(self):
