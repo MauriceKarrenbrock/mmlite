@@ -97,7 +97,7 @@ def setup_view(view, top=None, **kwargs):
             if n_regions > 0:
                 cls = list(colors[n_regions])
                 for name, selection in topography.regions.items():
-                    if name != 'default':
+                    if name not in ('default', 'solvent'):
                         view.add_representation('ball+stick',
                                                 selection=selection,
                                                 color=cls.pop())
