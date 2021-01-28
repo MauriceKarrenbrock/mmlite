@@ -30,8 +30,14 @@ class RegionsMixin:
         self._check_reserved_words(region)
         atom_selection = self.select(selection)
         # remove selection from pre-existing regions
+        # for name, sele in self._regions.items():
+        #    self._regions[name] = sorted(set(sele) - set(atom_selection))
+        # check region overlap
+        set1 = set(atom_selection)
         for name, sele in self._regions.items():
-            self._regions[name] = sorted(set(sele) - set(atom_selection))
+            if set(sele) & set1:
+                raise ValueError('Region %s overlaps pre-existing region %s' %
+                                 (region, name))
         # add new region
         self._regions[region] = atom_selection
 
