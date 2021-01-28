@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """openmm_lite package info"""
 __title__ = 'mmlite'
-__version__ = '0.2.4'
+__version__ = '0.2.5'
 __author__ = 'Simone Marsili'
 __summary__ = ''
 __url__ = 'https://github.com/simomarsili/mmlite'
