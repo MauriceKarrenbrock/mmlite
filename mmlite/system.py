@@ -56,15 +56,15 @@ class SystemMixin:
         top = mdtraj.Topology.from_openmm(self.topology)
         return mdtraj.Trajectory([self.positions / unit.nanometers], top)
 
-    def get_view(self, **kwargs):
+    def get_view(self, top=None, **kwargs):
         """Return a nglview view for the actual positions."""
         view = nglview.show_mdtraj(self.mdtraj)
-        mmlite.plot.setup_view(view, **kwargs)
+        mmlite.plot.setup_view(view, top=top, **kwargs)
         return view
 
     @property
     def view(self):
-        """Default ngl view."""
+        """Return the default ngl view."""
         return self.get_view()
 
     def from_pdb(self, pdb, *, ff=('amber99sb.xml', 'tip3p.xml'), **kwargs):
