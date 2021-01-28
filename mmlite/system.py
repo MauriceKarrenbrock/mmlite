@@ -56,9 +56,12 @@ class SystemMixin:
         top = mdtraj.Topology.from_openmm(self.topology)
         return mdtraj.Trajectory([self.positions / unit.nanometers], top)
 
-    def get_view(self, top=None, **kwargs):
+    def get_view(self, stride=None, atom_indices=None, top=None, **kwargs):
         """Return a nglview view for the actual positions."""
-        view = nglview.show_mdtraj(self.mdtraj)
+        view = nglview.show_mdtraj(self.mdtraj,
+                                   stride=stride,
+                                   atom_indices=atom_indices,
+                                   top=top)
         mmlite.plot.setup_view(view, top=top, **kwargs)
         return view
 
