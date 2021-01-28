@@ -137,16 +137,25 @@ def show_mdtraj(fp, stride=None, atom_indices=None, top=None, **kwargs):
 
     """
     load_args = dict(stride=stride, atom_indices=atom_indices)
+    topography = None
+    topology = None
+    if isinstance(top, yank.Topography):
+        topography = top
+        topology = top.topology
     if isinstance(top, mm.app.Topology):
-        top = mdtraj.Topology.from_openmm(top)
-    if top:
-        load_args['top'] = top
+        topology = mdtraj.Topology.from_openmm(top)
+    if isinstance(top, mdtraj.Topology):
+        topology = top
+    if topology:
+        load_args['top'] = topology
 
-    traj = mdtraj.load(fp, **load_args)
+    if isinstance(fp, mdtraj.Trajectory):
+        traj = fp
+    else:
+        traj = mdtraj.load(fp, **load_args)
     view = nglview.show_mdtraj(traj)
-    should_setup_view = False
-    if should_setup_view:
-        setup_view(view, top=traj.topology, **kwargs)  # TODO: fix
+    top = topography or topology
+    setup_view(view, top=top, **kwargs)  # TODO: fix
     return view
 
 

@@ -7,7 +7,6 @@ import copy
 import logging
 
 import mdtraj
-import nglview
 import simtk.openmm as mm
 from parmed import load_file
 from simtk import unit
@@ -58,11 +57,13 @@ class SystemMixin:
 
     def get_view(self, stride=None, atom_indices=None, top=None, **kwargs):
         """Return a nglview view for the actual positions."""
-        view = nglview.show_mdtraj(self.mdtraj,
-                                   stride=stride,
-                                   atom_indices=atom_indices,
-                                   top=top)
-        mmlite.plot.setup_view(view, top=top, **kwargs)
+        # view = nglview.show_mdtraj(self.mdtraj)
+        # mmlite.plot.setup_view(view, top=top, **kwargs)
+        view = mmlite.plot.show_mdtraj(self.mdtraj,
+                                       stride=stride,
+                                       atom_indices=atom_indices,
+                                       top=top,
+                                       **kwargs)
         return view
 
     @property
