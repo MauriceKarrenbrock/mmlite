@@ -30,18 +30,16 @@ class RegionsMixin:
         self._check_reserved_words(region)
         atom_selection = self.select(selection)
         # remove selection from pre-existing regions
-        # for name, sele in self._regions.items():
-        #    self._regions[name] = sorted(set(sele) - set(atom_selection))
-        # check region overlap
-        set1 = set(atom_selection)
         for name, sele in self._regions.items():
-            if set(sele) & set1:
-                raise ValueError('Region %s overlaps pre-existing region %s' %
-                                 (region, name))
+            self._regions[name] = sorted(set(sele) - set(atom_selection))
         # add new region
         self._regions[region] = atom_selection
 
     def __delitem__(self, region):
+        # return selection to default region
+        atoms = self._regions[region]
+        self._regions['default'] += atoms
+        # remove region
         self.remove_region(region)
 
     @property
@@ -151,6 +149,9 @@ class Topography(RegionsMixin, yank.Topography, MutableMapping):  # pylint: disa
                          ligand_atoms=ligand_atoms,
                          solvent_atoms=solvent_atoms)
         # initialize regions
-        self._regions['default'] = list(range(self.topology.n_atoms))
+        if not self._regions:
+            self._regions['default'] = list(range(self.topology.n_atoms))
+
+        # if regions is passed, overwrite existing regions
         if regions:
-            self._regions.update(regions)
+            self.regions = regions
