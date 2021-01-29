@@ -86,6 +86,10 @@ class AlanineDipeptideExplicit(SystemMixin,
     """Alanine dipeptide ff96 in OBC GBSA implicit solvent."""
 
 
+class DiatomicFluid(SystemMixin, testsystems.DiatomicFluid):
+    """Create a diatomic fluid."""
+
+
 class LennardJonesFluid(SystemMixin, testsystems.LennardJonesFluid):
     """Periodic fluid of Lennard-Jones particles."""
     def __init__(self, *args, **kwargs):
