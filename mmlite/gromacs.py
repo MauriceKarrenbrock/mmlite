@@ -171,6 +171,7 @@ class Top(InputFile):
 
 def bond_constraints(system):
     """For a openmm system, map constrained atom pairs to distances."""
+    # this is ok
     bonds = {}
     nc = system.getNumConstraints()
     for c in range(nc):
@@ -193,6 +194,7 @@ def fix_bond_constraints(structure, system):
 
     """
     constraints = bond_constraints(system)
+    btypes = {}
     kk = 0.0
 
     # add new bond types
@@ -201,14 +203,14 @@ def fix_bond_constraints(structure, system):
         if btype not in structure.bond_types:
             structure.bond_types.append(BondType(kk, dd))
         # map to bond type index
-        constraints[ids] = len(structure.bond_types) - 1
+        btypes[ids] = structure.bond_types.index(btype)
     structure.bond_types.claim()
 
     for bond in structure.bonds:
         if bond.type is None:
             ids = (bond.atom1.idx, bond.atom2.idx)
-            if ids in constraints:
-                btype = constraints[ids]
+            if ids in btypes:
+                btype = btypes[ids]
                 bond.type = structure.bond_types[btype]
             else:
                 raise ValueError(
