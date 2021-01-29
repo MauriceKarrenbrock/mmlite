@@ -214,7 +214,7 @@ def fix_bond_constraints(structure, system):
                 bond.type = structure.bond_types[btype]
             else:
                 raise ValueError(
-                    'Structure None bond cannot be mapped to omm constraints.')
+                    'Bond %r cannot be mapped to omm constraints.' % ids)
     return structure
 
 
