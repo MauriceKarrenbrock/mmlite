@@ -7,6 +7,8 @@ from pathlib import Path
 
 import mdtraj
 import parmed
+from parmed.topologyobjects import BondType
+
 from mmlite.utils import split_trajectory
 
 
@@ -167,12 +169,61 @@ class Top(InputFile):
     """
 
 
+def bond_constraints(system):
+    """For a openmm system, map constrained atom pairs to distances."""
+    bonds = {}
+    nc = system.getNumConstraints()
+    for c in range(nc):
+        prm = system.getConstraintParameters(c)
+        if len(prm) == 3:
+            *ids, dd = prm
+            ids = tuple(ids)
+            bonds[ids] = dd
+    return bonds
+
+
+def fix_bond_constraints(structure, system):
+    """
+    Fix constrained bonds in parmed.Structure object.
+
+    Parameters
+    ----------
+    structure : parmed.Structure
+    system : openmm.System
+
+    """
+    constraints = bond_constraints(system)
+    kk = 0.0
+
+    # add new bond types
+    for ids, dd in constraints.items():
+        btype = BondType(kk, dd)
+        if btype not in structure.bond_types:
+            structure.bond_types.append(BondType(kk, dd))
+        # map to bond type index
+        constraints[ids] = len(structure.bond_types) - 1
+    structure.bond_types.claim()
+
+    for bond in structure.bonds:
+        if bond.type is None:
+            ids = (bond.atom1.idx, bond.atom2.idx)
+            if ids in constraints:
+                btype = constraints[ids]
+                bond.type = structure.bond_types[btype]
+            else:
+                raise ValueError(
+                    'Structure None bond cannot be mapped to omm constraints.')
+    return structure
+
+
 def save_top(topology, system, path='frames/system.top'):
     """Save gromacs .top file from openmm topology and system."""
     # get a parmed.structure.Structure object
     if isinstance(topology, mdtraj.Topology):
         topology = topology.to_openmm()
+    # create a parmed Structure object
     structure = parmed.openmm.load_topology(topology, system=system)
+    fix_bond_constraints(structure, system)
     structure.save(str(Path(path)), overwrite=True)
 
 
