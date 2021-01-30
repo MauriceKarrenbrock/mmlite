@@ -177,8 +177,8 @@ def bond_constraints(system):
     for c in range(nc):
         prm = system.getConstraintParameters(c)
         if len(prm) == 3:
-            *ids, dd = prm
-            ids = tuple(ids)
+            ia, ib, dd = prm
+            ids = (ia, ib) if ib > ia else (ib, ia)
             bonds[ids] = dd
     return bonds
 
@@ -208,18 +208,27 @@ def fix_bond_constraints(structure, system):
 
     for bond in structure.bonds:
         if bond.type is None:
-            ids = (bond.atom1.idx, bond.atom2.idx)
+            ia, ib = (bond.atom1.idx, bond.atom2.idx)
+            ids = (ia, ib) if ib > ia else (ib, ia)
             if ids in btypes:
                 btype = btypes[ids]
                 bond.type = structure.bond_types[btype]
             else:
                 raise ValueError(
-                    'Bond %r cannot be mapped to omm constraints.' % ids)
+                    'Bond %r cannot be mapped to omm constraints.' % bond)
+
     return structure
 
 
 def save_top(topology, system, path='frames/system.top'):
-    """Save gromacs .top file from openmm topology and system."""
+    """Save gromacs .top file from openmm topology and system.
+
+    Bond constraints: added with 0 force constant
+    Angle constraints: TODO
+    If water molecules are constrained using rigidWater,
+    the corresponding terms will still be nonzero.
+
+    """
     # get a parmed.structure.Structure object
     if isinstance(topology, mdtraj.Topology):
         topology = topology.to_openmm()
