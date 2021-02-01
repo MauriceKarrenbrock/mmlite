@@ -51,24 +51,28 @@ class SamplerMixin:
     def from_testsystem(  # pylint: disable=too-many-arguments
             self,
             test,
-            temperatures,
+            thermodynamic_states,
             pressure=None,
             storage=None,
             target_state=0,
             metadata=None,
             **kwargs):
         """Initialize sampler from TestSystem object."""
-        if not isinstance(temperatures, Sequence):  # a scalar
-            temperatures = [temperatures]
-        if not isinstance(temperatures[0], unit.Quantity):  # no units
-            temperatures = [t * unit.kelvin for t in temperatures]
-        thermodynamic_states = [
-            ThermodynamicState(
-                system=test.system,
-                temperature=t,
-                pressure=pressure,
-            ) for t in temperatures
-        ]
+        if not isinstance(thermodynamic_states, Sequence):  # a scalar
+            thermodynamic_states = [thermodynamic_states]
+        # check if temp or thermodynamic states or something else
+        if not isinstance(thermodynamic_states[0], ThermodynamicState):
+            # as temperatures
+            temperatures = thermodynamic_states
+            if not isinstance(temperatures[0], unit.Quantity):  # no units
+                temperatures = [t * unit.kelvin for t in temperatures]
+            thermodynamic_states = [
+                ThermodynamicState(
+                    system=test.system,
+                    temperature=t,
+                    pressure=pressure,
+                ) for t in temperatures
+            ]
         sampler_states = SamplerState(positions=test.positions,
                                       box_vectors=test.default_box_vectors)
         self.create(thermodynamic_states,
