@@ -8,14 +8,14 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 
+import mdtraj
 import mmdemux
 import openmmtools as mmtools
 import simtk.openmm as mm
+from mmlite import Topography
 from openmmtools import mcmc, multistate
 from openmmtools.states import SamplerState, ThermodynamicState
 from simtk import unit
-
-from mmlite import Topography
 
 logger = logging.getLogger(__name__)
 
@@ -314,3 +314,97 @@ class ReplicaExchangeSampler(SamplerMixin, multistate.ReplicaExchangeSampler):  
         self.reporter = None
         self.ref_state = None
         self.topology = None
+
+
+def _reference_compound_state(reference_thermodynamic_state, top, region=None):
+    """
+    Return reference compound state.
+
+    Parameters
+    ----------
+    reference_thermodynamic_state : ThermodynamicState object
+    top : Topography or Topology object
+    region : str or list
+        Atomic indices defining the alchemical region.
+
+
+    """
+
+    if isinstance(top, (mdtraj.Topology, mm.app.Topology)):
+        topography = Topography(top)
+
+    thermodynamic_state = copy.deepcopy(reference_thermodynamic_state)
+
+    if region is None:
+        raise ValueError('An alchemical region is needed.')
+    if region in topography:  # region is predefined
+        alchemical_atoms = topography[region]
+    else:
+        alchemical_atoms = topography.select(region)
+
+    # init an AlchemicalRegion object
+    alchemical_region = mmtools.alchemy.AlchemicalRegion(
+        alchemical_atoms=alchemical_atoms, alchemical_torsions=True)
+
+    # Create an alchemically modified system using alchemical factory
+    factory = mmtools.alchemy.AbsoluteAlchemicalFactory(
+        consistent_exceptions=False)
+    alchemical_system = factory.create_alchemical_system(
+        thermodynamic_state.system, alchemical_region)
+
+    # using the alchemical system, update the thermodynamic state and
+    # init an alchemical state
+    thermodynamic_state.system = alchemical_system
+    alchemical_state = mmtools.alchemy.AlchemicalState.from_system(
+        alchemical_system)
+
+    # init the reference compund state (thermodynamic + alchemical)
+    composable_states = [alchemical_state]
+
+    compound_state = mmtools.states.CompoundThermodynamicState(
+        thermodynamic_state=thermodynamic_state,
+        composable_states=composable_states)
+
+    return compound_state
+
+
+def create_compound_states(reference_thermodynamic_state,
+                           top,
+                           protocol,
+                           region=None):
+    """
+    Return alchemically modified thermodynamic states.
+
+    Parameters
+    ----------
+    reference_thermodynamic_state : ThermodynamicState object
+    top : Topography or Topology object
+    protocol : dict
+        The dictionary ``{parameter_name: list_of_parameter_values}`` defining
+        the protocol. All the parameter values list must have the same
+        number of elements.
+    region : str or list
+        Atomic indices defining the alchemical region.
+
+
+    """
+
+    compound_state = _reference_compound_state(reference_thermodynamic_state,
+                                               top,
+                                               region=region)
+
+    # init the array of compound states
+    compound_states = []
+    protocol_keys, protocol_values = zip(*protocol.items())
+
+    for state_id, state_values in enumerate(zip(*protocol_values)):
+        compound_states.append(copy.deepcopy(compound_state))
+        for lambda_key, lambda_value in zip(protocol_keys, state_values):
+            if hasattr(compound_state, lambda_key):
+                setattr(compound_states[state_id], lambda_key, lambda_value)
+            else:
+                raise AttributeError(
+                    'CompoundThermodynamicState object does not '
+                    'have protocol attribute {}'.format(lambda_key))
+
+    return compound_states
