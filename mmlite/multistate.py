@@ -12,10 +12,12 @@ import mdtraj
 import mmdemux
 import openmmtools as mmtools
 import simtk.openmm as mm
-from mmlite import Topography
+import yank
 from openmmtools import mcmc, multistate
 from openmmtools.states import SamplerState, ThermodynamicState
 from simtk import unit
+
+from mmlite import Topography
 
 logger = logging.getLogger(__name__)
 
@@ -316,7 +318,11 @@ class ReplicaExchangeSampler(SamplerMixin, multistate.ReplicaExchangeSampler):  
         self.topology = None
 
 
-def _reference_compound_state(reference_thermodynamic_state, top, region=None):
+def _reference_compound_state(  # pylint: disable=too-many-locals
+        reference_thermodynamic_state,
+        top,
+        region=None,
+        set_restraint=False):
     """
     Return reference compound state.
 
@@ -326,12 +332,17 @@ def _reference_compound_state(reference_thermodynamic_state, top, region=None):
     top : Topography or Topology object
     region : str or list
         Atomic indices defining the alchemical region.
-
+    set_restraint : bool
+        If ligand exists, restraint ligand and receptor movements.
 
     """
 
+    _reference_compound_state.metadata = {}
+
     if isinstance(top, (mdtraj.Topology, mm.app.Topology)):
         topography = Topography(top)
+    else:
+        topography = top
 
     thermodynamic_state = copy.deepcopy(reference_thermodynamic_state)
 
@@ -358,8 +369,24 @@ def _reference_compound_state(reference_thermodynamic_state, top, region=None):
     alchemical_state = mmtools.alchemy.AlchemicalState.from_system(
         alchemical_system)
 
+    restraint_state = None
+    if 'ligand' in topography and set_restraint:
+        restraint = yank.Harmonic(
+            spring_constant=2.0 * unit.kilojoule_per_mole / unit.angstrom**2,
+            restrained_receptor_atoms=topography['receptor'],
+            restrained_ligand_atoms=topography['ligand'])
+        restraint.restrain_state(thermodynamic_state)
+        correction = restraint.get_standard_state_correction(
+            thermodynamic_state)  # in kT
+        _reference_compound_state.metadata[
+            'standard_state_correction'] = correction
+        restraint_state = yank.RestraintState(lambda_restraints=1.0)
+
     # init the reference compund state (thermodynamic + alchemical)
-    composable_states = [alchemical_state]
+    if restraint_state:
+        composable_states = [alchemical_state, restraint_state]
+    else:
+        composable_states = [alchemical_state]
 
     compound_state = mmtools.states.CompoundThermodynamicState(
         thermodynamic_state=thermodynamic_state,
@@ -371,7 +398,8 @@ def _reference_compound_state(reference_thermodynamic_state, top, region=None):
 def create_compound_states(reference_thermodynamic_state,
                            top,
                            protocol,
-                           region=None):
+                           region=None,
+                           set_restraint=False):
     """
     Return alchemically modified thermodynamic states.
 
@@ -385,13 +413,18 @@ def create_compound_states(reference_thermodynamic_state,
         number of elements.
     region : str or list
         Atomic indices defining the alchemical region.
-
+    set_restraint : bool
+        If ligand exists, restraint ligand and receptor movements.
 
     """
 
+    create_compound_states.metadata = {}
     compound_state = _reference_compound_state(reference_thermodynamic_state,
                                                top,
-                                               region=region)
+                                               region=region,
+                                               set_restraint=set_restraint)
+
+    create_compound_states.metadata.update(_reference_compound_state.metadata)
 
     # init the array of compound states
     compound_states = []
