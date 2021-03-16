@@ -53,6 +53,7 @@ class SamplerMixin:
     def from_testsystem(  # pylint: disable=too-many-arguments
             self,
             test,
+            reference_state,
             thermodynamic_states,
             pressure=None,
             storage=None,
@@ -77,7 +78,8 @@ class SamplerMixin:
             ]
         sampler_states = SamplerState(positions=test.positions,
                                       box_vectors=test.default_box_vectors)
-        self.create(thermodynamic_states,
+        self.create(reference_state,
+                    thermodynamic_states,
                     sampler_states,
                     test.topology,
                     target_state=target_state,
@@ -98,6 +100,7 @@ class SamplerMixin:
 
     def create(  # pylint: disable=too-many-arguments
             self,
+            reference_state,
             thermodynamic_states,
             sampler_states,
             top,
@@ -173,8 +176,7 @@ class SamplerMixin:
             sampler_states = SamplerState(sampler_states)
 
         # Do not modify passed ref thermodynamic state.
-        self._reference_thermodynamic_state = copy.deepcopy(
-            thermodynamic_states[target_state])
+        self._reference_thermodynamic_state = copy.deepcopy(reference_state)
         thermodynamic_state = copy.deepcopy(
             self._reference_thermodynamic_state)
         self._reference_system = thermodynamic_state.system
@@ -199,7 +201,7 @@ class SamplerMixin:
         metadata['sampler_full_name'] = sampler_full_name
         metadata['topography'] = mmtools.utils.serialize(self.topography)
         metadata['reference_state'] = mmtools.utils.serialize(
-            thermodynamic_states[target_state])
+            thermodynamic_state)  # the ref thermodynamic state
 
         super().create(
             thermodynamic_states=thermodynamic_states,
