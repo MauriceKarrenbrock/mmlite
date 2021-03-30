@@ -13,7 +13,7 @@ import mmdemux
 import openmmtools as mmtools
 import simtk.openmm as mm
 import yank
-from openmmtools import mcmc, multistate
+from openmmtools import cache, mcmc, multistate
 from openmmtools.states import SamplerState, ThermodynamicState
 from simtk import unit
 
@@ -24,8 +24,15 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def propagator(timestep=1.0 * unit.femtoseconds, n_steps=1000):
+def propagator(timestep=1.0 * unit.femtoseconds,
+               n_steps=1000,
+               platform='CUDA'):
     """Return a openmmtools mcmc move."""
+
+    cache.global_context_cache.platform = mm.Platform.getPlatformByName(
+        platform)
+
+    # ['Reference', 'CPU', 'CUDA', 'OpenCL']  # platforms
     return mcmc.LangevinDynamicsMove(
         timestep=timestep,
         collision_rate=5.0 / unit.picoseconds,
@@ -285,12 +292,7 @@ class SAMSSampler(SamplerMixin, multistate.SAMSSampler):  # pylint: disable=abst
     def __init__(
             self,
             number_of_iterations=1,  # total multistate moves
-            mcmc_moves=mcmc.LangevinDynamicsMove(
-                timestep=1.0 * unit.femtoseconds,
-                collision_rate=5.0 / unit.picoseconds,
-                n_steps=1000,  # steps between multistate moves
-                reassign_velocities=True,
-                n_restart_attempts=6),
+            mcmc_moves=propagator(),
             **kwargs):
         super().__init__(number_of_iterations=number_of_iterations,
                          mcmc_moves=mcmc_moves,
@@ -305,12 +307,7 @@ class ReplicaExchangeSampler(SamplerMixin, multistate.ReplicaExchangeSampler):  
     def __init__(
             self,
             number_of_iterations=1,  # total multistate moves
-            mcmc_moves=mcmc.LangevinDynamicsMove(
-                timestep=1.0 * unit.femtoseconds,
-                collision_rate=5.0 / unit.picoseconds,
-                n_steps=1000,  # steps between multistate moves
-                reassign_velocities=True,
-                n_restart_attempts=6),
+            mcmc_moves=propagator(),
             **kwargs):
         super().__init__(number_of_iterations=number_of_iterations,
                          mcmc_moves=mcmc_moves,
