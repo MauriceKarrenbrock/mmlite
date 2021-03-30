@@ -370,7 +370,7 @@ def _reference_compound_state(  # pylint: disable=too-many-locals
 
     restraint_state = None
     if 'ligand' in topography and set_restraint:
-        restraint = yank.Harmonic(
+        restraint = yank.restraints.Harmonic(
             spring_constant=2.0 * unit.kilojoule_per_mole / unit.angstrom**2,
             restrained_receptor_atoms=topography['receptor'],
             restrained_ligand_atoms=topography['ligand'])
@@ -379,7 +379,8 @@ def _reference_compound_state(  # pylint: disable=too-many-locals
             thermodynamic_state)  # in kT
         _reference_compound_state.metadata[
             'standard_state_correction'] = correction
-        restraint_state = yank.RestraintState(lambda_restraints=1.0)
+        # lambda_restraints is the strength of the restraint (betwenn 0 and 1)
+        restraint_state = yank.restraints.RestraintState(lambda_restraints=1.0)
 
     # init the reference compund state (thermodynamic + alchemical)
     if restraint_state:
