@@ -13,11 +13,10 @@ import mmdemux
 import openmmtools as mmtools
 import simtk.openmm as mm
 import yank
+from mmlite import Topography
 from openmmtools import cache, mcmc, multistate
 from openmmtools.states import SamplerState, ThermodynamicState
 from simtk import unit
-
-from mmlite import Topography
 
 logger = logging.getLogger(__name__)
 
@@ -292,8 +291,10 @@ class SAMSSampler(SamplerMixin, multistate.SAMSSampler):  # pylint: disable=abst
     def __init__(
             self,
             number_of_iterations=1,  # total multistate moves
-            mcmc_moves=propagator(),
+            mcmc_moves=None,
             **kwargs):
+        if mcmc_moves is None:
+            mcmc_moves = propagator()
         super().__init__(number_of_iterations=number_of_iterations,
                          mcmc_moves=mcmc_moves,
                          **kwargs)
@@ -307,8 +308,10 @@ class ReplicaExchangeSampler(SamplerMixin, multistate.ReplicaExchangeSampler):  
     def __init__(
             self,
             number_of_iterations=1,  # total multistate moves
-            mcmc_moves=propagator(),
+            mcmc_moves=None,
             **kwargs):
+        if mcmc_moves is None:
+            mcmc_moves = propagator()
         super().__init__(number_of_iterations=number_of_iterations,
                          mcmc_moves=mcmc_moves,
                          **kwargs)
