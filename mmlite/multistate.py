@@ -13,10 +13,11 @@ import mmdemux
 import openmmtools as mmtools
 import simtk.openmm as mm
 import yank
-from mmlite import Topography
 from openmmtools import cache, mcmc, multistate
 from openmmtools.states import SamplerState, ThermodynamicState
 from simtk import unit
+
+from mmlite import Topography
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,25 @@ def propagator(timestep=1.0 * unit.femtoseconds,
         n_steps=n_steps,  # steps between multistate moves
         reassign_velocities=True,
         n_restart_attempts=6)
+
+
+def _check_restraint(restraint, topography=None):
+    """Preprocess a ligand-receptor restraint."""
+    if not isinstance(restraint, yank.restraints.ReceptorLigandRestraint):
+        if isinstance(restraint, unit.Quantity):
+            k0 = restraint
+        elif restraint is True:
+            k0 = 2.0 * unit.kilojoule_per_mole / unit.angstrom**2
+        else:
+            raise ValueError('%r is not a valid restraint value' % restraint)
+        if topography is None or 'ligand' not in topography:
+            raise ValueError(
+                'To apply a default restraint, a ligand must be defined')
+        restraint = yank.restraints.Harmonic(
+            spring_constant=k0,
+            restrained_receptor_atoms=topography['receptor'],
+            restrained_ligand_atoms=topography['ligand'])
+    return restraint
 
 
 class SamplerMixin:
@@ -324,7 +344,7 @@ def _reference_compound_state(  # pylint: disable=too-many-locals
         reference_thermodynamic_state,
         top,
         region=None,
-        set_restraint=False):
+        restraint=False):
     """
     Return reference compound state.
 
@@ -334,8 +354,9 @@ def _reference_compound_state(  # pylint: disable=too-many-locals
     top : Topography or Topology object
     region : str or list
         Atomic indices defining the alchemical region.
-    set_restraint : bool
+    restraint : bool, Quantity or yank LigandReceptorRestraint
         If ligand exists, restraint ligand and receptor movements.
+        If True or a force constant, apply a Harmonic restraint.
 
     """
 
@@ -372,11 +393,11 @@ def _reference_compound_state(  # pylint: disable=too-many-locals
         alchemical_system)
 
     restraint_state = None
-    if 'ligand' in topography and set_restraint:
-        restraint = yank.restraints.Harmonic(
-            spring_constant=2.0 * unit.kilojoule_per_mole / unit.angstrom**2,
-            restrained_receptor_atoms=topography['receptor'],
-            restrained_ligand_atoms=topography['ligand'])
+
+    if restraint:
+        restraint = _check_restraint(restraint, topography)
+
+        # add the restraint force to the `System` of the thermodynamic state
         restraint.restrain_state(thermodynamic_state)
         correction = restraint.get_standard_state_correction(
             thermodynamic_state)  # in kT
@@ -402,7 +423,7 @@ def create_compound_states(reference_thermodynamic_state,
                            top,
                            protocol,
                            region=None,
-                           set_restraint=False):
+                           restraint=False):
     """
     Return alchemically modified thermodynamic states.
 
@@ -416,7 +437,7 @@ def create_compound_states(reference_thermodynamic_state,
         number of elements.
     region : str or list
         Atomic indices defining the alchemical region.
-    set_restraint : bool
+    restraint : bool
         If ligand exists, restraint ligand and receptor movements.
 
     """
@@ -425,7 +446,7 @@ def create_compound_states(reference_thermodynamic_state,
     compound_state = _reference_compound_state(reference_thermodynamic_state,
                                                top,
                                                region=region,
-                                               set_restraint=set_restraint)
+                                               restraint=restraint)
 
     create_compound_states.metadata.update(_reference_compound_state.metadata)
 
