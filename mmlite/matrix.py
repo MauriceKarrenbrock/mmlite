@@ -63,42 +63,6 @@ class RegionsMixin:
         self._regions = copy.copy(mapping)
 
 
-class AlchemicalMatrix(RegionsMixin, yank.Topography, MutableMapping):  # pylint: disable=too-many-ancestors
-    """Define the alchemical regions and their interactions.
-
-    Parameters
-    ----------
-    topology : mdtraj.Topology or simtk.openmm.app.Topology or dict
-        The topology object specifying the system.
-        If a Topography, define the new regions using the _regions attribute.
-        If a dict, use the keys as region names and the values as list of
-        atomic indices. In both cases, no overlap is allowed between the
-        atomic indices of different regions.
-    ligand_atoms : iterable of int or str, optional
-        The atom indices of the ligand. A string is interpreted as an mdtraj
-        DSL specification of the ligand atoms.
-    solvent_atoms : iterable of int or str, optional
-        The atom indices of the solvent. A string is interpreted as an mdtraj
-        DSL specification of the solvent atoms. If 'auto', a list of common
-        solvent residue names will be used to automatically detect solvent
-        atoms (default is 'auto').
-
-    """
-    def __init__(self,
-                 topology,
-                 ligand_atoms=None,
-                 solvent_atoms='auto',
-                 regions=None):
-        if isinstance(topology, Topography):
-            ligand_atoms = ligand_atoms or topology.ligand_atoms
-            solvent_atoms = solvent_atoms or topology.solvent_atoms
-            regions = regions or topology._regions
-            topology = topology.topology
-        super().__init__(topology,
-                         ligand_atoms=ligand_atoms,
-                         solvent_atoms=solvent_atoms)
-
-
 class Topography(RegionsMixin, yank.Topography, MutableMapping):  # pylint: disable=too-many-ancestors
     """
     Define the alchemical regions and their interactions.

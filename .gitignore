@@ -112,3 +112,6 @@ notebooks/*
 !notebooks/villin.ipynb
 
 data/*
+
+.vscode
+.vscode/*
