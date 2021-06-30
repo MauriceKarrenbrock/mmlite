@@ -8,7 +8,6 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 
-import mdtraj
 import mmdemux
 import openmmtools as mmtools
 import simtk.openmm as mm
@@ -24,15 +23,34 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def propagator(timestep=1.0 * unit.femtoseconds,
-               n_steps=1000,
-               platform='CUDA'):
-    """Return a openmmtools mcmc move."""
+def propagator(timestep=1.0 * unit.femtoseconds, n_steps=1000, platform=None):
+    """Return a openmmtools mcmc move.
 
-    cache.global_context_cache.platform = mm.Platform.getPlatformByName(
-        platform)
+    Parameters
+    ------------
+    timestep : simtk.unit.Quantity, default=1.0 * unit.femtoseconds
+    n_steps : int, default=1000
+        steps between multistate moves
+        therefore how many steps to do before attempting
+        a replica swap
+    platform : str, optional
+        for default the openmmtools default will be used
+        it is usually the fastest one that it can find
+        it changes the global variable
+        `openmmtools.cache.global_context_cache.platform`
+        possible options are CUDA CPU Reference OpenCL
+
+    Notes
+    -----------
+    reducing `n_steps` too much is going to drastically
+    slow down the MD run
+    """
 
     # ['Reference', 'CPU', 'CUDA', 'OpenCL']  # platforms
+    if platform is not None:
+        cache.global_context_cache.platform = mm.Platform.getPlatformByName(
+            platform)
+
     return mcmc.LangevinDynamicsMove(
         timestep=timestep,
         collision_rate=5.0 / unit.picoseconds,
@@ -42,7 +60,18 @@ def propagator(timestep=1.0 * unit.femtoseconds,
 
 
 def _check_restraint(restraint, topography=None):
-    """Preprocess a ligand-receptor restraint."""
+    """Preprocess a ligand-receptor restraint.
+
+    Parameters
+    --------------
+    restraint : yank.restraints.ReceptorLigandRestraint or simtk.unit.Quantity or True
+    topography : mmlite.topography.Topography
+
+    Returns
+    -----------
+    yank.restraints.Harmonic if a quantity or True was given as `restraint`
+    or `restraint` if the imput was yank.restraints.ReceptorLigandRestraint
+    """
     if not isinstance(restraint, yank.restraints.ReceptorLigandRestraint):
         if isinstance(restraint, unit.Quantity):
             k0 = restraint
@@ -222,8 +251,8 @@ class SamplerMixin:
         if metadata is None:
             metadata = {}
         sampler_full_name = mmtools.utils.typename(self.__class__)
-        metadata['title'] = 'Created using %s on %s' % (
-            sampler_full_name, time.asctime(time.localtime()))
+        metadata[
+            'title'] = f'Created using {sampler_full_name} on {time.asctime(time.localtime())}'
         metadata['sampler_full_name'] = sampler_full_name
         metadata['topography'] = mmtools.utils.serialize(self.topography)
         metadata['reference_state'] = mmtools.utils.serialize(
@@ -344,7 +373,8 @@ def _reference_compound_state(  # pylint: disable=too-many-locals
         reference_thermodynamic_state,
         top,
         region=None,
-        restraint=False):
+        restraint=None,
+        ligand_atoms=None):
     """
     Return reference compound state.
 
@@ -352,20 +382,38 @@ def _reference_compound_state(  # pylint: disable=too-many-locals
     ----------
     reference_thermodynamic_state : ThermodynamicState object
     top : Topography or Topology object
-    region : str or list
+    region : str or list(int)
         Atomic indices defining the alchemical region.
-    restraint : bool, Quantity or yank LigandReceptorRestraint
+        a mdtraj selection string or a list of atom indexes (0 indexed)
+    restraint : Quantity or yank LigandReceptorRestraint or False
         If ligand exists, restraint ligand and receptor movements.
         If True or a force constant, apply a Harmonic restraint.
+        if None the function will add a default restraint if there is
+        a ligand none otherwise
+    ligand_atoms : str or list(int), optional
+        a mdtraj selection string or a list of atom indexes (0 indexed)
+        if given it will overwrite wathever may have been in the input
+        `top` if it was a Topography.
+        If it is not given it will be checked if something was defined in `top`
+        if nothing was defined it will be taken for granted that there is no ligand
 
+    Returns
+    ---------
+    reference compound state
     """
 
-    _reference_compound_state.metadata = {}
-
-    if isinstance(top, (mdtraj.Topology, mm.app.Topology)):
+    if not isinstance(top, Topography):
         topography = Topography(top)
     else:
         topography = top
+
+    if ligand_atoms:
+        topography.ligand_atoms = ligand_atoms
+
+    # If there is a ligand and restraint is None
+    # Use the default
+    if restraint is None and not topography.ligand_atoms:
+        restraint = True
 
     thermodynamic_state = copy.deepcopy(reference_thermodynamic_state)
 
@@ -399,10 +447,6 @@ def _reference_compound_state(  # pylint: disable=too-many-locals
 
         # add the restraint force to the `System` of the thermodynamic state
         restraint.restrain_state(thermodynamic_state)
-        correction = restraint.get_standard_state_correction(
-            thermodynamic_state)  # in kT
-        _reference_compound_state.metadata[
-            'standard_state_correction'] = correction
         # lambda_restraints is the strength of the restraint (betwenn 0 and 1)
         restraint_state = yank.restraints.RestraintState(lambda_restraints=1.0)
 
@@ -423,32 +467,36 @@ def create_compound_states(reference_thermodynamic_state,
                            top,
                            protocol,
                            region=None,
-                           restraint=False):
-    """
-    Return alchemically modified thermodynamic states.
+                           restraint=None):
+    """Return alchemically modified thermodynamic states.
 
     Parameters
     ----------
     reference_thermodynamic_state : ThermodynamicState object
     top : Topography or Topology object
     protocol : dict
-        The dictionary ``{parameter_name: list_of_parameter_values}`` defining
+        A dictionary ```{parameter_name: list_of_parameter_values}``` defining
         the protocol. All the parameter values list must have the same
         number of elements.
+        the first value shall be 1. (reference state) and the last one
+        the most scaled one.
+        If for example you want to scale tosions on 8 replicas
+        ```{'lambda_torsions' : list(numpy.logspace(0, -1, 8)))}```
+        might be a reasonable starting point
     region : str or list
         Atomic indices defining the alchemical region.
     restraint : bool
         If ligand exists, restraint ligand and receptor movements.
 
+    Returns
+    ---------
+    compound_states
     """
 
-    create_compound_states.metadata = {}
     compound_state = _reference_compound_state(reference_thermodynamic_state,
                                                top,
                                                region=region,
                                                restraint=restraint)
-
-    create_compound_states.metadata.update(_reference_compound_state.metadata)
 
     # init the array of compound states
     compound_states = []
@@ -462,6 +510,6 @@ def create_compound_states(reference_thermodynamic_state,
             else:
                 raise AttributeError(
                     'CompoundThermodynamicState object does not '
-                    'have protocol attribute {}'.format(lambda_key))
+                    f'have protocol attribute {lambda_key}')
 
     return compound_states
