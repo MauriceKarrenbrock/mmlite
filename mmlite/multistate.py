@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """(multistate) sampling utils."""
 # pylint: disable=no-member, protected-access, import-error
+# pylint: disable=consider-using-with
 import copy
 import logging
+import shutil
 import tempfile
 import time
 from collections.abc import Sequence
@@ -76,7 +78,7 @@ def _check_restraint(restraint, topography=None):
         if isinstance(restraint, unit.Quantity):
             k0 = restraint
         elif restraint is True:
-            k0 = 2.0 * unit.kilojoule_per_mole / unit.angstrom**2
+            k0 = 120.0 * unit.kilojoule_per_mole / unit.nanometers**2
         else:
             raise ValueError('%r is not a valid restraint value' % restraint)
         if topography is None or 'ligand' not in topography:
@@ -131,8 +133,9 @@ class SamplerMixin:
                     pressure=pressure,
                 ) for t in temperatures
             ]
-        sampler_states = SamplerState(positions=test.positions,
-                                      box_vectors=test.default_box_vectors)
+        sampler_states = SamplerState(
+            positions=test.positions,
+            box_vectors=test.system.periodicBoxVectors)
         self.create(reference_state,
                     thermodynamic_states,
                     sampler_states,
@@ -513,3 +516,239 @@ def create_compound_states(reference_thermodynamic_state,
                     f'have protocol attribute {lambda_key}')
 
     return compound_states
+
+
+class SetupReplicaExchangeSimulation(object):  # pylint: disable=too-many-instance-attributes
+    """A high level class to quickly set up a replica exchange simulation and run it
+
+    Parameters
+    --------------
+    positions : openmm positions
+    topology : openmm Topology
+    system : openmm System
+    alchemical_region : str or iterable(int)
+        a mdtraj like selection string or an iterable of atom indexes that defines
+        the alchemical region
+    ligand_atoms : str or iterable(int), default=None
+        a mdtraj like selection string or an iterable of atom indexes that defines
+        the ligand. If omitted it means there is no ligand in the system
+    restraint : openmm or yank restraint or simtk.Quantity False or None, default=None
+        which kind of restraint to define between the protein and the ligand
+        if a quantity is given an harmonic poteintial with K=`restraint` will be used
+        if left None, if it is not a protein ligand system nothing happens if it is a protein
+        ligand a default harmonic restraint is used with K=120kjmol/nanometers**2
+        If False no restraint is used
+    unrestrained_system : openmm System, optional, default=None
+        an openmm system that is completely unrestrained (restrains=None, rigid_water=False)
+        it is necessary if you want to use parmed to write a file for a different MD program
+        (gromacs top file for example)
+    replica_protocol : dict(thing_to_scale=list(float)), default=None
+        the scaling values for the various replicas. If left None
+        the `get_default_replica_protocol` method will be used
+    temperature : simtik.Quantity, default=298.15*unit.kelvin
+    pressure : simtik.Quantity, default=1.0*unit.atmosphere
+    timestep : simtik.Quantity, default=2.0 * unit.femtoseconds
+    number_of_iterations : int, default=1
+        the number of attempted replica swaps
+    steps_between_iterations : int, default=1000
+        the number of MD steps between each replica swap attempt
+    mcmc_moves : default=openmmtools.mcmc.LangevinDynamicsMove(
+        collision_rate=5.0 / unit.picoseconds,
+        reassign_velocities=True,
+        n_restart_attempts=6)
+    metadata : dict, default=None
+        metadata to store in `storage`
+    storage : str or path, default='trj.nc'
+        the storage file in which the MD run will be written
+    platform : str, optional, default=None
+        for default the openmmtools default will be used
+        it is usually the fastest one that it can find
+        it changes the global variable
+        `openmmtools.cache.global_context_cache.platform`
+        possible options are CUDA CPU Reference OpenCL
+    verbose=True,
+    sampler_class default=ReplicaExchangeSampler,
+    extend : bool, default=False
+        if True and `storage` already exists instead of backing
+        it up and restarting fresh the old `storage` will be used
+
+    Methods
+    -----------
+    run(equilibration=0, extend=None, minimize=False)
+        sets up and runs the simulation
+    get_default_replica_protocol(n_replicas=8, base=0.2)
+        static method to get a geometrical progression of
+        scalig values for the torsional hamiltonian
+    """
+    def __init__(  # pylint: disable=too-many-arguments, too-many-locals
+            self,
+            positions,
+            topology,
+            system,
+            alchemical_region,
+            ligand_atoms=None,
+            restraint=None,
+            unrestrained_system=None,
+            replica_protocol=None,
+            temperature=298.15 * unit.kelvin,
+            pressure=1.0 * unit.atmosphere,
+            timestep=2.0 * unit.femtoseconds,
+            number_of_iterations=1,
+            steps_between_iterations=1000,
+            mcmc_moves=None,
+            metadata=None,
+            storage='trj.nc',
+            platform=None,
+            verbose=True,
+            sampler_class=ReplicaExchangeSampler,
+            extend=False):
+
+        self.positions = positions
+        self.topology = topology
+        self.system = system
+        self.alchemical_region = alchemical_region
+        self.ligand_atoms = ligand_atoms
+        self.restraint = restraint
+        self.unrestrained_system = unrestrained_system
+
+        if replica_protocol is None:
+            replica_protocol = self.get_default_replica_protocol()
+        self.replica_protocol = replica_protocol
+        self.temperature = temperature
+        self.pressure = pressure
+        self.timestep = timestep
+        self.number_of_iterations = number_of_iterations
+        self.steps_between_iterations = steps_between_iterations
+
+        if mcmc_moves is None:
+            mcmc_moves = propagator(timestep=timestep,
+                                    n_steps=steps_between_iterations,
+                                    platform=platform)
+        self.mcmc_moves = mcmc_moves
+
+        if metadata is None:
+            metadata = {}
+        self.metadata = metadata
+
+        self.storage = Path(storage)
+        # backup old storages if it doesn't have to be extended
+        if self.storage.exists() and not extend:
+            shutil.move(str(self.storage), self._get_backup_name(self.storage))
+        self.metadata['storage'] = self.storage
+
+        self.platform = platform
+
+        if self.unrestrained_system:
+            self.metadata['unrestrained_system'] = self.unrestrained_system
+
+        if verbose:
+            logging.getLogger('openmmtools.multistate').setLevel(logging.DEBUG)
+
+        self.sampler_class = sampler_class
+        self.metadata['sampler_class'] = self.sampler_class
+
+    @staticmethod
+    def get_default_replica_protocol(n_replicas=8, base=0.2):
+        """
+        Parameters
+        ------------
+        n_replicas : int, default=8
+        base : float, default=0.2
+
+        Returns
+        ------------
+        {'lambda_torsions' : [`base`**(i / (`n_replicas`-1)) for i in range(`n_replicas`)]}
+        """
+        scaling_values = [
+            base**(i / (n_replicas - 1)) for i in range(n_replicas)
+        ]
+
+        return {'lambda_torsions': scaling_values}
+
+    @staticmethod
+    def _get_backup_name(file_name):
+        """private"""
+        file_name = str(file_name)
+
+        i = 1
+
+        while Path(file_name + f'({i})').exists():
+            i += 1
+
+        return file_name + f'({i})'
+
+    def _setup_sampler(self):
+        """private"""
+        reference_thermodynamic_state = mmtools.states.ThermodynamicState(
+            system=self.system,
+            temperature=self.temperature,
+            pressure=self.pressure)
+        thermodynamic_states = create_compound_states(
+            reference_thermodynamic_state,
+            self.topology,
+            self.replica_protocol,
+            region=self.alchemical_region,
+            restraint=self.restraint)
+
+        try:
+            sampler = self.metadata['sampler_class'].from_storage(
+                self.metadata['storage'])
+        except FileNotFoundError:
+
+            class Dummy():  # pylint: disable=too-few-public-methods
+                """Dummy class"""
+                def __init__(self, system, positions, topology):
+                    self.system = system
+                    self.positions = positions
+                    self.topology = topology
+
+            test = Dummy(self.system, self.positions, self.topology)
+            sampler = self.metadata['sampler_class'](
+                number_of_iterations=0,
+                mcmc_moves=self.mcmc_moves,
+                online_analysis_interval=None)
+
+            sampler.from_testsystem(
+                test,
+                reference_state=reference_thermodynamic_state,
+                thermodynamic_states=thermodynamic_states,
+                pressure=self.pressure,
+                stride=self.steps_between_iterations,
+                storage=self.storage,
+                metadata=self.metadata)
+
+        return sampler
+
+    def run(self, equilibration=0, extend=None, minimize=False):
+        """Sets up and runs the simulation
+
+        Parameters
+        ------------
+        equilibration : int, default=0
+            the number of equilibration steps to do before
+            the replica exchange
+        extend : int, optional, default=None
+            if given will run the simulation for
+            `extend` number of iterations
+            useful when you want to extend the simulation over
+            `self.number_of_iterations`
+        minimize : bool, default=False
+            if True a energy minimization will be done before the
+            equilibration
+        """
+        if self.platform is not None:
+            cache.global_context_cache.platform = mm.Platform.getPlatformByName(
+                self.platform)
+
+        if extend is None:
+            extend = self.number_of_iterations
+
+        sampler = self._setup_sampler()
+
+        if minimize:
+            sampler.minimize()
+
+        if equilibration > 0:
+            sampler.equilibrate(equilibration)
+        if extend > 0:
+            sampler.extend(extend)
